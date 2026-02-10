@@ -3,9 +3,11 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
+import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
+import 'package:remote_zfs_unlock/screens/create_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
 
 class ServerDetailScreen extends HookConsumerWidget {
@@ -131,6 +133,45 @@ class ServerDetailScreen extends HookConsumerWidget {
       });
     }
 
+    Future<void> createDataset() async {
+      final parentDatasets =
+          datasets.value
+              .map((dataset) => dataset.name.trim())
+              .where((name) => name.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
+      if (parentDatasets.isEmpty) {
+        showStatusSnack(
+          'No parent datasets available. Refresh datasets first.',
+          isError: true,
+        );
+        return;
+      }
+
+      final request = await showDialog<CreateDatasetRequest>(
+        context: context,
+        builder: (context) =>
+            CreateDatasetDialog(parentDatasets: parentDatasets),
+      );
+      if (request == null) {
+        return;
+      }
+
+      await withBusy(() async {
+        final secrets = await readSecrets();
+        await zfsService.createDataset(
+          profile: profile,
+          secrets: secrets,
+          request: request,
+        );
+        datasets.value = await fetchDatasets();
+        showStatusSnack(
+          'Created `${request.parentDataset}/${request.datasetName}`.',
+        );
+      });
+    }
+
     useEffect(() {
       Future<void>.microtask(refreshDatasets);
       return null;
@@ -144,6 +185,11 @@ class ServerDetailScreen extends HookConsumerWidget {
             tooltip: 'Test connection',
             onPressed: loading.value ? null : testConnection,
             icon: const Icon(Icons.link),
+          ),
+          IconButton(
+            tooltip: 'Create dataset',
+            onPressed: loading.value ? null : createDataset,
+            icon: const Icon(Icons.create_new_folder_outlined),
           ),
           IconButton(
             tooltip: 'Refresh datasets',

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_zfs_unlock/models/auth_mode.dart';
+import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
@@ -55,26 +56,110 @@ tank/media\toff\t-\tyes
       sshService.commandWithInputCalls.single.command,
       contains("zfs load-key 'tank/home'"),
     );
-    expect(sshService.commandWithInputCalls.single.stdinData, 'my-secret\n'.codeUnits);
+    expect(
+      sshService.commandWithInputCalls.single.stdinData,
+      'my-secret\n'.codeUnits,
+    );
   });
 
-  test('unlockDataset with keyfile uploads and removes remote temp file', () async {
-    await zfsService.unlockDataset(
+  test('createDataset sends zfs create for non-encrypted dataset', () async {
+    await zfsService.createDataset(
       profile: profile,
       secrets: secrets,
-      datasetName: 'tank/home',
-      request: UnlockRequest.keyFile(Uint8List.fromList([1, 2, 3])),
+      request: const CreateDatasetRequest(
+        parentDataset: 'tank/home',
+        datasetName: 'projects',
+        encrypted: false,
+      ),
     );
 
-    expect(sshService.uploadCalls, hasLength(1));
     expect(sshService.commandWithInputCalls, hasLength(1));
-    expect(
-      sshService.commandWithInputCalls.single.command,
-      contains("zfs load-key -L 'file:///tmp/remote_zfs_unlock_"),
-    );
-    expect(sshService.commandCalls, hasLength(1));
-    expect(sshService.commandCalls.single, startsWith("rm -f '/tmp/remote_zfs_unlock_"));
+    final call = sshService.commandWithInputCalls.single;
+    expect(call.command, contains("zfs create 'tank/home/projects'"));
+    expect(call.stdinData, isEmpty);
   });
+
+  test(
+    'createDataset sends encrypted create command with passphrase stdin',
+    () async {
+      await zfsService.createDataset(
+        profile: profile,
+        secrets: secrets,
+        request: const CreateDatasetRequest(
+          parentDataset: 'tank/home',
+          datasetName: 'secrets',
+          encrypted: true,
+          passphrase: 'pass-123',
+        ),
+      );
+
+      expect(sshService.commandWithInputCalls, hasLength(1));
+      final call = sshService.commandWithInputCalls.single;
+      expect(
+        call.command,
+        contains(
+          "zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt 'tank/home/secrets'",
+        ),
+      );
+      expect(call.stdinData, 'pass-123\n'.codeUnits);
+    },
+  );
+
+  test('createDataset rejects empty dataset name', () async {
+    await expectLater(
+      () => zfsService.createDataset(
+        profile: profile,
+        secrets: secrets,
+        request: const CreateDatasetRequest(
+          parentDataset: 'tank/home',
+          datasetName: '   ',
+          encrypted: false,
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(sshService.commandWithInputCalls, isEmpty);
+  });
+
+  test('createDataset rejects encrypted request without passphrase', () async {
+    await expectLater(
+      () => zfsService.createDataset(
+        profile: profile,
+        secrets: secrets,
+        request: const CreateDatasetRequest(
+          parentDataset: 'tank/home',
+          datasetName: 'private',
+          encrypted: true,
+        ),
+      ),
+      throwsArgumentError,
+    );
+    expect(sshService.commandWithInputCalls, isEmpty);
+  });
+
+  test(
+    'unlockDataset with keyfile uploads and removes remote temp file',
+    () async {
+      await zfsService.unlockDataset(
+        profile: profile,
+        secrets: secrets,
+        datasetName: 'tank/home',
+        request: UnlockRequest.keyFile(Uint8List.fromList([1, 2, 3])),
+      );
+
+      expect(sshService.uploadCalls, hasLength(1));
+      expect(sshService.commandWithInputCalls, hasLength(1));
+      expect(
+        sshService.commandWithInputCalls.single.command,
+        contains("zfs load-key -L 'file:///tmp/remote_zfs_unlock_"),
+      );
+      expect(sshService.commandCalls, hasLength(1));
+      expect(
+        sshService.commandCalls.single,
+        startsWith("rm -f '/tmp/remote_zfs_unlock_"),
+      );
+    },
+  );
 
   test('lockDataset calls zfs unload-key', () async {
     await zfsService.lockDataset(
@@ -93,7 +178,8 @@ tank/media\toff\t-\tyes
 
 class _RecordingSshService extends SshService {
   final List<String> commandCalls = <String>[];
-  final List<_CommandWithInputCall> commandWithInputCalls = <_CommandWithInputCall>[];
+  final List<_CommandWithInputCall> commandWithInputCalls =
+      <_CommandWithInputCall>[];
   final List<_UploadCall> uploadCalls = <_UploadCall>[];
 
   @override
@@ -114,7 +200,10 @@ class _RecordingSshService extends SshService {
     required List<int> stdinData,
   }) async {
     commandWithInputCalls.add(
-      _CommandWithInputCall(command: command, stdinData: List<int>.from(stdinData)),
+      _CommandWithInputCall(
+        command: command,
+        stdinData: List<int>.from(stdinData),
+      ),
     );
     return const SshExecutionResult(exitCode: 0, stdout: '', stderr: '');
   }
@@ -131,20 +220,14 @@ class _RecordingSshService extends SshService {
 }
 
 class _CommandWithInputCall {
-  const _CommandWithInputCall({
-    required this.command,
-    required this.stdinData,
-  });
+  const _CommandWithInputCall({required this.command, required this.stdinData});
 
   final String command;
   final List<int> stdinData;
 }
 
 class _UploadCall {
-  const _UploadCall({
-    required this.bytes,
-    required this.remotePath,
-  });
+  const _UploadCall({required this.bytes, required this.remotePath});
 
   final Uint8List bytes;
   final String remotePath;

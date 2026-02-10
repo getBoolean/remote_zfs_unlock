@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
+import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/services/ssh_service.dart';
@@ -58,6 +59,55 @@ class ZfsService {
     return datasets;
   }
 
+  Future<void> createDataset({
+    required ServerProfile profile,
+    required ServerSecrets secrets,
+    required CreateDatasetRequest request,
+  }) async {
+    final parentDataset = request.parentDataset.trim();
+    final datasetName = request.datasetName.trim();
+    if (parentDataset.isEmpty) {
+      throw ArgumentError('Parent dataset is required.');
+    }
+    if (datasetName.isEmpty) {
+      throw ArgumentError('Dataset name is required.');
+    }
+    if (datasetName.contains('/')) {
+      throw ArgumentError(
+        'Dataset name must be a single name without slashes.',
+      );
+    }
+
+    final fullDatasetName = '$parentDataset/$datasetName';
+    if (!request.encrypted) {
+      final result = await _sshService.runCommandWithInput(
+        profile: profile,
+        secrets: secrets,
+        command: 'zfs create ${_shellQuote(fullDatasetName)}',
+        stdinData: const [],
+      );
+      if (result.exitCode != 0) {
+        throw StateError(_joinStdio(result.stdout, result.stderr));
+      }
+      return;
+    }
+
+    final passphrase = request.passphrase?.trim();
+    if (passphrase == null || passphrase.isEmpty) {
+      throw ArgumentError('Passphrase is required for encrypted datasets.');
+    }
+    final result = await _sshService.runCommandWithInput(
+      profile: profile,
+      secrets: secrets,
+      command:
+          'zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt ${_shellQuote(fullDatasetName)}',
+      stdinData: '$passphrase\n'.codeUnits,
+    );
+    if (result.exitCode != 0) {
+      throw StateError(_joinStdio(result.stdout, result.stderr));
+    }
+  }
+
   Future<void> unlockDataset({
     required ServerProfile profile,
     required ServerSecrets secrets,
@@ -84,7 +134,8 @@ class ZfsService {
         if (keyFileBytes == null || keyFileBytes.isEmpty) {
           throw ArgumentError('Key file is required.');
         }
-        final tempPath = '/tmp/remote_zfs_unlock_${Random().nextInt(1 << 32)}.key';
+        final tempPath =
+            '/tmp/remote_zfs_unlock_${Random().nextInt(1 << 32)}.key';
         await _sshService.uploadBytes(
           profile: profile,
           secrets: secrets,
