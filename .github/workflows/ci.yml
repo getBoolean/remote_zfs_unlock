@@ -77,6 +77,170 @@ jobs:
           annotate-only: true
           # custom-lint: true
 
+  build_web:
+    name: Build Flutter for Web
+    needs: [flutter_test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Variables
+        run: |
+          echo "Inputs: ${{ toJSON(github.event.inputs) }}"
+
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+
+      - name: Check Flutter Version
+        run: flutter --version
+
+      - name: Load Environment Variables
+        uses: oNaiPs/secrets-to-env-action@v1
+        with:
+          secrets: ${{ toJSON(secrets) }}
+
+      - name: Build Web
+        run: |
+          flutter pub get
+          flutter build web --release
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-web
+          path: build/web
+
+  deploy_web:
+    name: Deploy Flutter Web to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [build_web]
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+      pull-requests: write
+      issues: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    if: github.event_name == 'push' && !startsWith(github.event.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install and set Flutter version
+        if: github.actor != 'dependabot[bot]'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+
+      - name: Get branch name
+        id: branch-name
+        if: github.actor != 'dependabot[bot]'
+        uses: tj-actions/branch-names@v8
+
+      - name: Check Flutter Version
+        if: github.actor != 'dependabot[bot]'
+        run: flutter --version
+
+      - name: Load Environment Variables
+        if: github.actor != 'dependabot[bot]'
+        uses: oNaiPs/secrets-to-env-action@v1
+        with:
+          secrets: ${{ toJSON(secrets) }}
+
+      - name: Get Dependencies
+        if: github.actor != 'dependabot[bot]'
+        run: flutter pub get
+
+      - name: Build Web
+        if: github.actor != 'dependabot[bot]'
+        run: |
+          flutter build web --release --base-href="/${{ github.event.repository.name }}/${{ steps.branch-name.outputs.current_branch }}/"
+
+      - name: Deploy to GitHub Pages 🚀
+        if: github.actor != 'dependabot[bot]'
+        uses: JamesIves/github-pages-deploy-action@releases/v4
+        id: deployment
+        with:
+          token: ${{ secrets.PAT }}
+          branch: gh-pages
+          folder: build/web
+          target-folder: "${{ steps.branch-name.outputs.current_branch }}"
+
+      - name: Find PR Number
+        uses: actions/github-script@v6
+        id: get_pr_number
+        if: github.actor != 'dependabot[bot]' && steps.deployment.outputs.deployment-status == 'success'
+        with:
+          script: |
+            if (context.issue.number) {
+              return context.issue.number;
+            } else {
+              const comment = (
+                await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  commit_sha: context.sha,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                })
+              ).data[0];
+
+              if (comment != null) {
+                return comment.number;
+              }
+              return null;
+            }
+          result-encoding: string
+
+      - name: Get PR State
+        uses: actions/github-script@v6
+        id: get_pr_state
+        if: github.actor != 'dependabot[bot]' && steps.get_pr_number.outputs.result != 'null' && steps.deployment.outputs.deployment-status == 'success'
+        with:
+          script: |
+            return (
+                await github.rest.issues.get({
+                  issue_number: ${{ steps.get_pr_number.outputs.result }},
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                })
+              ).data.state;
+          result-encoding: string
+
+      - name: Find Comment
+        uses: peter-evans/find-comment@v3
+        id: comment
+        if: github.actor != 'dependabot[bot]' && steps.get_pr_number.outputs.result != 'null' && steps.deployment.outputs.deployment-status == 'success'
+        with:
+          issue-number: ${{ steps.get_pr_number.outputs.result }}
+          body-includes: Deployed to GitHub Pages 🚀
+          comment-author: github-actions[bot]
+
+      - name: Link Deployment in Pull Request Comment
+        if: github.actor != 'dependabot[bot]' && steps.get_pr_number.outputs.result != 'null' && steps.deployment.outputs.deployment-status == 'success' && steps.get_pr_state.outputs.result == 'open' && steps.comment.outputs.comment-id == ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: ${{ steps.get_pr_number.outputs.result }},
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Deployed to GitHub Pages 🚀: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ steps.branch-name.outputs.current_branch }}/'
+            });
+
   build_ios_without_signing:
     name: Build Flutter for iOS (Without Signing)
     needs: [flutter_test]
