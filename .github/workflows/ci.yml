@@ -10,8 +10,8 @@ on:
 
 env:
   APP_NAME: "remote_zfs_unlock"
-  FLUTTER_CHANNEL: "stable"
-  FLUTTER_VERSION: "3.38.9"
+  FLUTTER_CHANNEL: "beta"
+  FLUTTER_VERSION: "3.41.0-0.3.pre"
   BRANCH_NAME: $(echo -n ${{ github.head_ref || github.ref_name }} | tr "/" "-")
 
 jobs:
