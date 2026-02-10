@@ -160,9 +160,31 @@ class ServerDetailScreen extends HookConsumerWidget {
         return;
       }
 
+      String? initialServerKeyFilePath;
+      if (allowedMethod == UnlockMethod.keyFile) {
+        final rawKeyLocation = dataset.keyLocation.trim();
+        if (rawKeyLocation.startsWith('file://') &&
+            rawKeyLocation.length > 'file://'.length) {
+          initialServerKeyFilePath = rawKeyLocation.substring('file://'.length);
+        } else if (rawKeyLocation.startsWith('/')) {
+          initialServerKeyFilePath = rawKeyLocation;
+        }
+      }
+
       final request = await showDialog<UnlockRequest>(
         context: context,
-        builder: (context) => UnlockDialog(allowedMethod: allowedMethod!),
+        builder: (context) => UnlockDialog(
+          allowedMethod: allowedMethod!,
+          initialServerKeyFilePath: initialServerKeyFilePath,
+          serverPathSuggestions: (query) async {
+            final secrets = await readSecrets();
+            return zfsService.suggestServerKeyFilePaths(
+              profile: profile,
+              secrets: secrets,
+              partialPath: query,
+            );
+          },
+        ),
       );
       if (request == null) {
         return;
@@ -209,8 +231,17 @@ class ServerDetailScreen extends HookConsumerWidget {
 
       final request = await showDialog<CreateDatasetRequest>(
         context: context,
-        builder: (context) =>
-            CreateDatasetDialog(parentDatasets: parentDatasets),
+        builder: (context) => CreateDatasetDialog(
+          parentDatasets: parentDatasets,
+          serverPathSuggestions: (query) async {
+            final secrets = await readSecrets();
+            return zfsService.suggestServerKeyFilePaths(
+              profile: profile,
+              secrets: secrets,
+              partialPath: query,
+            );
+          },
+        ),
       );
       if (request == null) {
         return;

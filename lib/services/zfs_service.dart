@@ -37,6 +37,56 @@ class ZfsService {
     return parseDatasets(output);
   }
 
+  Future<List<String>> suggestServerKeyFilePaths({
+    required ServerProfile profile,
+    required ServerSecrets secrets,
+    required String partialPath,
+    int limit = 30,
+  }) async {
+    final query = partialPath.trim();
+    if (query.isEmpty) {
+      return const [];
+    }
+
+    final safeLimit = limit.clamp(1, 100);
+    final output = await _sshService.runCommand(
+      profile: profile,
+      secrets: secrets,
+      command:
+          "q=${_shellQuote(query)}; "
+          "if [ \"\${q#*/}\" = \"\$q\" ]; then "
+          "d='.'; "
+          "b=\"\$q\"; "
+          "else "
+          "d=\${q%/*}; "
+          "b=\${q##*/}; "
+          "if [ -z \"\$d\" ]; then d='/'; fi; "
+          'fi; '
+          "[ -d \"\$d\" ] || exit 0; "
+          "count=0; "
+          "for e in \"\$d\"/\"\$b\"*; do "
+          "[ -e \"\$e\" ] || continue; "
+          "if [ -d \"\$e\" ]; then printf '%s/\\n' \"\$e\"; else printf '%s\\n' \"\$e\"; fi; "
+          "count=\$((count+1)); "
+          "[ \$count -ge $safeLimit ] && break; "
+          'done',
+    );
+
+    final unique = <String>{};
+    final suggestions = <String>[];
+    for (final rawLine in output.split('\n')) {
+      final line = rawLine.trim();
+      if (line.isEmpty) {
+        continue;
+      }
+      final normalized = _normalizeSuggestedPath(line);
+      if (unique.add(normalized)) {
+        suggestions.add(normalized);
+      }
+    }
+    return suggestions;
+  }
+
   List<ZfsDataset> parseDatasets(String output) {
     final datasets = <ZfsDataset>[];
     for (final rawLine in output.split('\n')) {
@@ -255,11 +305,18 @@ class ZfsService {
 
     final passphrase = request.passphrase?.trim();
     final keyFileBytes = request.keyFileBytes;
+    final keyFilePathOnServer = request.keyFilePathOnServer?.trim();
     final hasPassphrase = passphrase != null && passphrase.isNotEmpty;
     final hasKeyFile = keyFileBytes != null && keyFileBytes.isNotEmpty;
-    if (hasPassphrase && hasKeyFile) {
+    final hasKeyFilePathOnServer =
+        keyFilePathOnServer != null && keyFilePathOnServer.isNotEmpty;
+    final credentialInputCount =
+        (hasPassphrase ? 1 : 0) +
+        (hasKeyFile ? 1 : 0) +
+        (hasKeyFilePathOnServer ? 1 : 0);
+    if (credentialInputCount > 1) {
       throw ArgumentError(
-        'Use either a passphrase or keyfile for encrypted datasets, not both.',
+        'Use exactly one encrypted key input: passphrase, uploaded keyfile, or server keyfile path.',
       );
     }
     if (hasPassphrase) {
@@ -292,8 +349,23 @@ class ZfsService {
       }
       return;
     }
+    if (hasKeyFilePathOnServer) {
+      final encryption = request.keyFileEncryptionType.zfsValue;
+      final keyLocation = _buildServerKeyLocation(keyFilePathOnServer);
+      final result = await _sshService.runCommandWithInput(
+        profile: profile,
+        secrets: secrets,
+        command:
+            'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=${_shellQuote(keyLocation)} ${_shellQuote(fullDatasetName)}',
+        stdinData: const [],
+      );
+      if (result.exitCode != 0) {
+        throw StateError(_joinStdio(result.stdout, result.stderr));
+      }
+      return;
+    }
     throw ArgumentError(
-      'Passphrase or keyfile is required for encrypted datasets.',
+      'Passphrase, uploaded keyfile, or server keyfile path is required for encrypted datasets.',
     );
   }
 
@@ -351,6 +423,23 @@ class ZfsService {
             command: 'rm -f ${_shellQuote(tempPath)}',
           );
         }
+      case UnlockMethod.keyFilePathOnServer:
+        final keyFilePathOnServer = request.keyFilePathOnServer?.trim();
+        if (keyFilePathOnServer == null || keyFilePathOnServer.isEmpty) {
+          throw ArgumentError('Key file path on server is required.');
+        }
+        final locator = _buildServerKeyLocation(keyFilePathOnServer);
+        final loadResult = await _sshService.runCommandWithInput(
+          profile: profile,
+          secrets: secrets,
+          command:
+              'zfs load-key -L ${_shellQuote(locator)} ${_shellQuote(datasetName)}',
+          stdinData: const [],
+        );
+        if (loadResult.exitCode != 0) {
+          throw StateError(_joinStdio(loadResult.stdout, loadResult.stderr));
+        }
+        return;
     }
   }
 
@@ -435,5 +524,34 @@ class ZfsService {
 
   String _shellQuote(String value) {
     return "'${value.replaceAll("'", "'\"'\"'")}'";
+  }
+
+  String _buildServerKeyLocation(String rawPathOrUri) {
+    final value = rawPathOrUri.trim();
+    if (value.isEmpty) {
+      throw ArgumentError('Server keyfile path is required.');
+    }
+    if (value.startsWith('file://')) {
+      if (value.length <= 'file://'.length) {
+        throw ArgumentError('Server keyfile URI is missing a path.');
+      }
+      return value;
+    }
+    if (!value.startsWith('/')) {
+      throw ArgumentError(
+        'Server keyfile path must be an absolute path or file:// URI.',
+      );
+    }
+    return 'file://$value';
+  }
+
+  String _normalizeSuggestedPath(String value) {
+    if (value.startsWith('./')) {
+      return value.substring(2);
+    }
+    if (value.startsWith('//')) {
+      return '/${value.replaceFirst(RegExp(r'^/+'), '')}';
+    }
+    return value;
   }
 }

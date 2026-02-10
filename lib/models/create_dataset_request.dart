@@ -42,6 +42,7 @@ class CreateDatasetRequest {
     required this.encrypted,
     this.passphrase,
     this.keyFileBytes,
+    this.keyFilePathOnServer,
     this.keyFileEncryptionType,
   });
 
@@ -50,5 +51,6 @@ class CreateDatasetRequest {
   final bool encrypted;
   final String? passphrase;
   final Uint8List? keyFileBytes;
+  final String? keyFilePathOnServer;
   final CreateDatasetEncryptionType? keyFileEncryptionType;
 }

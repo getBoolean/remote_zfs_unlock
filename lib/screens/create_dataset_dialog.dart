@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +7,7 @@ import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 
 enum _CreateEncryptionMethod { passphrase, keyFile }
 
-enum _KeyFileInputMethod { upload, rawText }
+enum _KeyFileInputMethod { upload, rawText, serverPath }
 
 class _Utf8ByteLengthLimitingTextInputFormatter extends TextInputFormatter {
   const _Utf8ByteLengthLimitingTextInputFormatter(this.maxBytes);
@@ -55,9 +54,14 @@ class _Utf8ByteLengthLimitingTextInputFormatter extends TextInputFormatter {
 }
 
 class CreateDatasetDialog extends StatefulWidget {
-  const CreateDatasetDialog({required this.parentDatasets, super.key});
+  const CreateDatasetDialog({
+    required this.parentDatasets,
+    required this.serverPathSuggestions,
+    super.key,
+  });
 
   final List<String> parentDatasets;
+  final Future<List<String>> Function(String query) serverPathSuggestions;
 
   @override
   State<CreateDatasetDialog> createState() => _CreateDatasetDialogState();
@@ -70,6 +74,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
   final _passphraseController = TextEditingController();
   final _confirmPassphraseController = TextEditingController();
   final _rawKeyTextController = TextEditingController();
+  final _serverKeyFilePathController = TextEditingController();
+  final _serverKeyFilePathFocusNode = FocusNode();
 
   late String _selectedParent;
   bool _encrypted = false;
@@ -80,6 +86,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
       CreateDatasetEncryptionType.on;
   Uint8List? _keyFileBytes;
   String? _keyFileName;
+  bool _serverPathLookupInProgress = false;
 
   @override
   void initState() {
@@ -93,6 +100,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     _passphraseController.dispose();
     _confirmPassphraseController.dispose();
     _rawKeyTextController.dispose();
+    _serverKeyFilePathController.dispose();
+    _serverKeyFilePathFocusNode.dispose();
     super.dispose();
   }
 
@@ -158,8 +167,10 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                       _passphraseController.clear();
                       _confirmPassphraseController.clear();
                       _rawKeyTextController.clear();
+                      _serverKeyFilePathController.clear();
                       _keyFileBytes = null;
                       _keyFileName = null;
+                      _serverPathLookupInProgress = false;
                     }
                   });
                 },
@@ -279,6 +290,10 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                         value: _KeyFileInputMethod.rawText,
                         label: Text('Raw text'),
                       ),
+                      ButtonSegment<_KeyFileInputMethod>(
+                        value: _KeyFileInputMethod.serverPath,
+                        label: Text('Path on server'),
+                      ),
                     ],
                     selected: {_keyFileInputMethod},
                     onSelectionChanged: (selection) {
@@ -308,12 +323,19 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                         return null;
                       }
                       final rawKeyText = _rawKeyTextController.text;
-                      if (rawKeyText.trim().isEmpty) {
-                        return 'Raw key text is required.';
+                      if (_keyFileInputMethod == _KeyFileInputMethod.rawText) {
+                        if (rawKeyText.trim().isEmpty) {
+                          return 'Raw key text is required.';
+                        }
+                        final byteLength = utf8.encode(rawKeyText).length;
+                        if (byteLength != 32) {
+                          return 'Raw key must be exactly 256 bit (32 bytes).';
+                        }
+                        return null;
                       }
-                      final byteLength = utf8.encode(rawKeyText).length;
-                      if (byteLength != 32) {
-                        return 'Raw key must be exactly 256 bit (32 bytes).';
+                      final serverPath = _serverKeyFilePathController.text;
+                      if (serverPath.trim().isEmpty) {
+                        return 'Server keyfile path is required.';
                       }
                       return null;
                     },
@@ -339,7 +361,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                                 ),
                               ],
                             )
-                          else
+                          else if (_keyFileInputMethod ==
+                              _KeyFileInputMethod.rawText)
                             TextFormField(
                               controller: _rawKeyTextController,
                               onChanged: (_) {
@@ -356,6 +379,87 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                               ),
                               minLines: 3,
                               maxLines: 5,
+                            )
+                          else
+                            Autocomplete<String>(
+                              textEditingController:
+                                  _serverKeyFilePathController,
+                              focusNode: _serverKeyFilePathFocusNode,
+                              optionsBuilder: _loadServerPathOptions,
+                              onSelected: (_) {
+                                _keyFileFormFieldKey.currentState?.validate();
+                              },
+                              fieldViewBuilder:
+                                  (context, controller, focusNode, onSubmit) {
+                                    return TextFormField(
+                                      controller: controller,
+                                      focusNode: focusNode,
+                                      onFieldSubmitted: (_) => onSubmit(),
+                                      onChanged: (_) {
+                                        _keyFileFormFieldKey.currentState
+                                            ?.validate();
+                                      },
+                                      decoration: InputDecoration(
+                                        labelText: 'Keyfile path on server',
+                                        hintText:
+                                            '/root/zfs.keys/my-dataset.key',
+                                        helperText: _serverPathLookupInProgress
+                                            ? 'Loading path suggestions...'
+                                            : 'Type to see matching paths on the server.',
+                                        suffixIcon: _serverPathLookupInProgress
+                                            ? const Padding(
+                                                padding: EdgeInsets.all(12),
+                                                child: SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                    );
+                                  },
+                              optionsViewBuilder:
+                                  (context, onSelected, options) {
+                                    final optionList = options.toList();
+                                    if (optionList.isEmpty) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return Align(
+                                      alignment: Alignment.topLeft,
+                                      child: Material(
+                                        elevation: 4,
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxHeight: 260,
+                                            minWidth: 320,
+                                            maxWidth: 520,
+                                          ),
+                                          child: ListView.builder(
+                                            padding: EdgeInsets.zero,
+                                            shrinkWrap: true,
+                                            itemCount: optionList.length,
+                                            itemBuilder: (context, index) {
+                                              final option = optionList[index];
+                                              return ListTile(
+                                                dense: true,
+                                                title: Text(option),
+                                                onTap: () =>
+                                                    _handleServerPathOptionTap(
+                                                      option,
+                                                      onSelected,
+                                                    ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
                             ),
                           if (hasError)
                             Padding(
@@ -400,6 +504,12 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
             _keyFileInputMethod == _KeyFileInputMethod.rawText
         ? Uint8List.fromList(utf8.encode(_rawKeyTextController.text))
         : null;
+    final keyFilePathOnServer =
+        _encrypted &&
+            _encryptionMethod == _CreateEncryptionMethod.keyFile &&
+            _keyFileInputMethod == _KeyFileInputMethod.serverPath
+        ? _serverKeyFilePathController.text.trim()
+        : null;
 
     Navigator.of(context).pop(
       CreateDatasetRequest(
@@ -413,16 +523,64 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
             : null,
         keyFileBytes:
             _encrypted && _encryptionMethod == _CreateEncryptionMethod.keyFile
-            ? (_keyFileInputMethod == _KeyFileInputMethod.upload
-                  ? _keyFileBytes
-                  : rawTextBytes)
+            ? switch (_keyFileInputMethod) {
+                _KeyFileInputMethod.upload => _keyFileBytes,
+                _KeyFileInputMethod.rawText => rawTextBytes,
+                _KeyFileInputMethod.serverPath => null,
+              }
             : null,
+        keyFilePathOnServer: keyFilePathOnServer,
         keyFileEncryptionType:
             _encrypted && _encryptionMethod == _CreateEncryptionMethod.keyFile
             ? _keyFileEncryptionType
             : null,
       ),
     );
+  }
+
+  Future<Iterable<String>> _loadServerPathOptions(
+    TextEditingValue textEditingValue,
+  ) async {
+    final query = textEditingValue.text.trim();
+    if (query.isEmpty) {
+      if (_serverPathLookupInProgress && mounted) {
+        setState(() => _serverPathLookupInProgress = false);
+      }
+      return const Iterable<String>.empty();
+    }
+
+    if (!_serverPathLookupInProgress && mounted) {
+      setState(() => _serverPathLookupInProgress = true);
+    }
+    try {
+      final suggestions = await widget.serverPathSuggestions(query);
+      final normalizedQuery = query.toLowerCase();
+      return suggestions.where(
+        (option) => option.toLowerCase().contains(normalizedQuery),
+      );
+    } catch (_) {
+      return const Iterable<String>.empty();
+    } finally {
+      if (_serverPathLookupInProgress && mounted) {
+        setState(() => _serverPathLookupInProgress = false);
+      }
+    }
+  }
+
+  void _handleServerPathOptionTap(
+    String option,
+    AutocompleteOnSelected<String> onSelected,
+  ) {
+    if (option.endsWith('/')) {
+      _serverKeyFilePathController.value = TextEditingValue(
+        text: option,
+        selection: TextSelection.collapsed(offset: option.length),
+      );
+      _serverKeyFilePathFocusNode.requestFocus();
+      _keyFileFormFieldKey.currentState?.validate();
+      return;
+    }
+    onSelected(option);
   }
 
   Future<void> _pickKeyFile() async {

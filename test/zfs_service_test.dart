@@ -172,35 +172,32 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
     },
   );
 
-  test(
-    'createDataset with keyfile streams key over SSH prompt',
-    () async {
-      final keyBytes = Uint8List.fromList(List<int>.filled(32, 1));
-      await zfsService.createDataset(
-        profile: profile,
-        secrets: secrets,
-        request: CreateDatasetRequest(
-          parentDataset: 'tank/home',
-          datasetName: 'secrets-keyfile',
-          encrypted: true,
-          keyFileBytes: keyBytes,
-        ),
-      );
+  test('createDataset with keyfile streams key over SSH prompt', () async {
+    final keyBytes = Uint8List.fromList(List<int>.filled(32, 1));
+    await zfsService.createDataset(
+      profile: profile,
+      secrets: secrets,
+      request: CreateDatasetRequest(
+        parentDataset: 'tank/home',
+        datasetName: 'secrets-keyfile',
+        encrypted: true,
+        keyFileBytes: keyBytes,
+      ),
+    );
 
-      expect(sshService.commandWithInputCalls, hasLength(1));
-      final call = sshService.commandWithInputCalls.single;
-      expect(
-        call.command,
-        contains(
-          "zfs create -o encryption=on -o keyformat=raw -o keylocation=prompt ",
-        ),
-      );
-      expect(call.command, contains("'tank/home/secrets-keyfile'"));
-      expect(call.stdinData, keyBytes);
-      expect(sshService.uploadCalls, isEmpty);
-      expect(sshService.commandCalls, isEmpty);
-    },
-  );
+    expect(sshService.commandWithInputCalls, hasLength(1));
+    final call = sshService.commandWithInputCalls.single;
+    expect(
+      call.command,
+      contains(
+        "zfs create -o encryption=on -o keyformat=raw -o keylocation=prompt ",
+      ),
+    );
+    expect(call.command, contains("'tank/home/secrets-keyfile'"));
+    expect(call.stdinData, keyBytes);
+    expect(sshService.uploadCalls, isEmpty);
+    expect(sshService.commandCalls, isEmpty);
+  });
 
   test(
     'createDataset with keyfile allows selecting aes-128-gcm encryption',
@@ -245,6 +242,102 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
         sshService.commandWithInputCalls.single.command,
         contains('zfs create -o encryption=aes-192-gcm -o keyformat=raw'),
       );
+    },
+  );
+
+  test('createDataset with server keyfile path uses file keylocation', () async {
+    await zfsService.createDataset(
+      profile: profile,
+      secrets: secrets,
+      request: const CreateDatasetRequest(
+        parentDataset: 'tank/home',
+        datasetName: 'secrets-keyfile-path',
+        encrypted: true,
+        keyFilePathOnServer: '/root/keys/zfs.key',
+      ),
+    );
+
+    expect(sshService.commandWithInputCalls, hasLength(1));
+    final call = sshService.commandWithInputCalls.single;
+    expect(
+      call.command,
+      contains(
+        "zfs create -o encryption=on -o keyformat=raw -o keylocation='file:///root/keys/zfs.key'",
+      ),
+    );
+    expect(call.command, contains("'tank/home/secrets-keyfile-path'"));
+    expect(call.stdinData, isEmpty);
+  });
+
+  test(
+    'createDataset with server keyfile path accepts explicit file URI',
+    () async {
+      await zfsService.createDataset(
+        profile: profile,
+        secrets: secrets,
+        request: const CreateDatasetRequest(
+          parentDataset: 'tank/home',
+          datasetName: 'secrets-keyfile-uri',
+          encrypted: true,
+          keyFilePathOnServer: 'file:///etc/zfs/key.bin',
+        ),
+      );
+
+      expect(sshService.commandWithInputCalls, hasLength(1));
+      expect(
+        sshService.commandWithInputCalls.single.command,
+        contains("keylocation='file:///etc/zfs/key.bin'"),
+      );
+      expect(sshService.commandWithInputCalls.single.stdinData, isEmpty);
+    },
+  );
+
+  test(
+    'createDataset rejects combining passphrase and server keyfile path',
+    () async {
+      await expectLater(
+        () => zfsService.createDataset(
+          profile: profile,
+          secrets: secrets,
+          request: const CreateDatasetRequest(
+            parentDataset: 'tank/home',
+            datasetName: 'invalid-mixed-inputs',
+            encrypted: true,
+            passphrase: 'my-pass',
+            keyFilePathOnServer: '/root/keys/zfs.key',
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(sshService.commandWithInputCalls, isEmpty);
+    },
+  );
+
+  test(
+    'suggestServerKeyFilePaths returns normalized unique suggestions',
+    () async {
+      sshService.runCommandOutput = './alpha.key\n./nested/\n./alpha.key\n';
+      final suggestions = await zfsService.suggestServerKeyFilePaths(
+        profile: profile,
+        secrets: secrets,
+        partialPath: 'a',
+      );
+      expect(suggestions, <String>['alpha.key', 'nested/']);
+    },
+  );
+
+  test(
+    'suggestServerKeyFilePaths handles absolute root-prefixed queries',
+    () async {
+      sshService.runCommandOutput = '//root/keys/\n//root/key.bin\n';
+      final suggestions = await zfsService.suggestServerKeyFilePaths(
+        profile: profile,
+        secrets: secrets,
+        partialPath: '/root/k',
+      );
+      expect(suggestions, <String>['/root/keys/', '/root/key.bin']);
+      expect(sshService.commandCalls, hasLength(1));
+      expect(sshService.commandCalls.single, contains('d=\'/\';'));
     },
   );
 
@@ -323,6 +416,27 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
     },
   );
 
+  test(
+    'unlockDataset with server keyfile path loads key directly from server',
+    () async {
+      await zfsService.unlockDataset(
+        profile: profile,
+        secrets: secrets,
+        datasetName: 'tank/home',
+        request: const UnlockRequest.keyFilePathOnServer('/root/keys/zfs.key'),
+      );
+
+      expect(sshService.uploadCalls, isEmpty);
+      expect(sshService.commandCalls, isEmpty);
+      expect(sshService.commandWithInputCalls, hasLength(1));
+      expect(
+        sshService.commandWithInputCalls.single.command,
+        contains("zfs load-key -L 'file:///root/keys/zfs.key' 'tank/home'"),
+      );
+      expect(sshService.commandWithInputCalls.single.stdinData, isEmpty);
+    },
+  );
+
   test('lockDataset calls zfs unload-key', () async {
     await zfsService.lockDataset(
       profile: profile,
@@ -357,6 +471,7 @@ class _RecordingSshService extends SshService {
   final List<_CommandWithInputCall> commandWithInputCalls =
       <_CommandWithInputCall>[];
   final List<_UploadCall> uploadCalls = <_UploadCall>[];
+  String runCommandOutput = '';
 
   @override
   Future<String> runCommand({
@@ -365,7 +480,7 @@ class _RecordingSshService extends SshService {
     required String command,
   }) async {
     commandCalls.add(command);
-    return '';
+    return runCommandOutput;
   }
 
   @override

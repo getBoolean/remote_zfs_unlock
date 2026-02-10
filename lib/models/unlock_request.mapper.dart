@@ -31,6 +31,8 @@ class UnlockMethodMapper extends EnumMapper<UnlockMethod> {
         return UnlockMethod.passphrase;
       case 'keyFile':
         return UnlockMethod.keyFile;
+      case 'keyFilePathOnServer':
+        return UnlockMethod.keyFilePathOnServer;
       default:
         throw MapperException.unknownEnumValue(value);
     }
@@ -43,6 +45,8 @@ class UnlockMethodMapper extends EnumMapper<UnlockMethod> {
         return 'passphrase';
       case UnlockMethod.keyFile:
         return 'keyFile';
+      case UnlockMethod.keyFilePathOnServer:
+        return 'keyFilePathOnServer';
     }
   }
 }
@@ -85,12 +89,20 @@ class UnlockRequestMapper extends ClassMapperBase<UnlockRequest> {
     _$keyFileBytes,
     mode: FieldMode.member,
   );
+  static String? _$keyFilePathOnServer(UnlockRequest v) =>
+      v.keyFilePathOnServer;
+  static const Field<UnlockRequest, String> _f$keyFilePathOnServer = Field(
+    'keyFilePathOnServer',
+    _$keyFilePathOnServer,
+    mode: FieldMode.member,
+  );
 
   @override
   final MappableFields<UnlockRequest> fields = const {
     #passphrase: _f$passphrase,
     #method: _f$method,
     #keyFileBytes: _f$keyFileBytes,
+    #keyFilePathOnServer: _f$keyFilePathOnServer,
   };
 
   static UnlockRequest _instantiate(DecodingData data) {
