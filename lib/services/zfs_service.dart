@@ -290,11 +290,15 @@ class ZfsService {
     }
 
     final fullDatasetName = '$parentDataset/$datasetName';
+    final compressionOption = request.compressionType;
+    final compressionFlag = compressionOption == null
+        ? ''
+        : ' -o compression=${_zfsCompressionValue(compressionOption)}';
     if (!request.encrypted) {
       final result = await _sshService.runCommandWithInput(
         profile: profile,
         secrets: secrets,
-        command: 'zfs create ${_shellQuote(fullDatasetName)}',
+        command: 'zfs create$compressionFlag ${_shellQuote(fullDatasetName)}',
         stdinData: const [],
       );
       if (result.exitCode != 0) {
@@ -324,7 +328,7 @@ class ZfsService {
         profile: profile,
         secrets: secrets,
         command:
-            'zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt ${_shellQuote(fullDatasetName)}',
+            'zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt$compressionFlag ${_shellQuote(fullDatasetName)}',
         stdinData: '$passphrase\n'.codeUnits,
       );
       if (result.exitCode != 0) {
@@ -341,7 +345,7 @@ class ZfsService {
         profile: profile,
         secrets: secrets,
         command:
-            'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=prompt ${_shellQuote(fullDatasetName)}',
+            'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=prompt$compressionFlag ${_shellQuote(fullDatasetName)}',
         stdinData: Uint8List.fromList(keyFileBytes),
       );
       if (result.exitCode != 0) {
@@ -356,7 +360,7 @@ class ZfsService {
         profile: profile,
         secrets: secrets,
         command:
-            'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=${_shellQuote(keyLocation)} ${_shellQuote(fullDatasetName)}',
+            'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=${_shellQuote(keyLocation)}$compressionFlag ${_shellQuote(fullDatasetName)}',
         stdinData: const [],
       );
       if (result.exitCode != 0) {
@@ -543,6 +547,29 @@ class ZfsService {
       );
     }
     return 'file://$value';
+  }
+
+  String _zfsCompressionValue(ZfsCompressionType value) {
+    switch (value) {
+      case ZfsCompressionType.on:
+        return 'on';
+      case ZfsCompressionType.off:
+        return 'off';
+      case ZfsCompressionType.lzjb:
+        return 'lzjb';
+      case ZfsCompressionType.gzip:
+        return 'gzip';
+      case ZfsCompressionType.zle:
+        return 'zle';
+      case ZfsCompressionType.lz4:
+        return 'lz4';
+      case ZfsCompressionType.zstd:
+        return 'zstd';
+      case ZfsCompressionType.zstdFast:
+        return 'zstd-fast';
+      case ZfsCompressionType.unknown:
+        throw ArgumentError('Unknown compression type cannot be used.');
+    }
   }
 
   String _normalizeSuggestedPath(String value) {

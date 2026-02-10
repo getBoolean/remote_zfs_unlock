@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
+import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 
 enum _CreateEncryptionMethod { passphrase, keyFile }
 
@@ -84,6 +85,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
   _KeyFileInputMethod _keyFileInputMethod = _KeyFileInputMethod.upload;
   CreateDatasetEncryptionType _keyFileEncryptionType =
       CreateDatasetEncryptionType.on;
+  ZfsCompressionType? _compressionType;
   Uint8List? _keyFileBytes;
   String? _keyFileName;
   bool _serverPathLookupInProgress = false;
@@ -149,6 +151,52 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                     return 'Use a single dataset name (no slashes).';
                   }
                   return null;
+                },
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<ZfsCompressionType?>(
+                initialValue: _compressionType,
+                decoration: const InputDecoration(labelText: 'Compression'),
+                items: const [
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: null,
+                    child: Text('Default (inherit)'),
+                  ),
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: ZfsCompressionType.on,
+                    child: Text('On'),
+                  ),
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: ZfsCompressionType.off,
+                    child: Text('Off'),
+                  ),
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: ZfsCompressionType.lzjb,
+                    child: Text('LZJB'),
+                  ),
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: ZfsCompressionType.gzip,
+                    child: Text('GZIP'),
+                  ),
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: ZfsCompressionType.zle,
+                    child: Text('ZLE'),
+                  ),
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: ZfsCompressionType.lz4,
+                    child: Text('LZ4'),
+                  ),
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: ZfsCompressionType.zstd,
+                    child: Text('ZSTD'),
+                  ),
+                  DropdownMenuItem<ZfsCompressionType?>(
+                    value: ZfsCompressionType.zstdFast,
+                    child: Text('ZSTD Fast'),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() => _compressionType = value);
                 },
               ),
               const SizedBox(height: 12),
@@ -516,6 +564,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
         parentDataset: _selectedParent,
         datasetName: _datasetNameController.text.trim(),
         encrypted: _encrypted,
+        compressionType: _compressionType,
         passphrase:
             _encrypted &&
                 _encryptionMethod == _CreateEncryptionMethod.passphrase

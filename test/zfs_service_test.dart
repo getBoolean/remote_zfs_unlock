@@ -147,6 +147,28 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
   });
 
   test(
+    'createDataset applies selected compression for non-encrypted dataset',
+    () async {
+      await zfsService.createDataset(
+        profile: profile,
+        secrets: secrets,
+        request: const CreateDatasetRequest(
+          parentDataset: 'tank/home',
+          datasetName: 'compressed-projects',
+          encrypted: false,
+          compressionType: ZfsCompressionType.zstd,
+        ),
+      );
+
+      expect(sshService.commandWithInputCalls, hasLength(1));
+      final call = sshService.commandWithInputCalls.single;
+      expect(call.command, contains('zfs create -o compression=zstd '));
+      expect(call.command, contains("'tank/home/compressed-projects'"));
+      expect(call.stdinData, isEmpty);
+    },
+  );
+
+  test(
     'createDataset sends encrypted create command with passphrase stdin',
     () async {
       await zfsService.createDataset(
@@ -169,6 +191,31 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
         ),
       );
       expect(call.stdinData, 'pass-123\n'.codeUnits);
+    },
+  );
+
+  test(
+    'createDataset includes compression for encrypted keyfile create',
+    () async {
+      await zfsService.createDataset(
+        profile: profile,
+        secrets: secrets,
+        request: CreateDatasetRequest(
+          parentDataset: 'tank/home',
+          datasetName: 'secrets-compressed',
+          encrypted: true,
+          keyFileBytes: Uint8List.fromList(List<int>.filled(32, 3)),
+          compressionType: ZfsCompressionType.lz4,
+        ),
+      );
+
+      expect(sshService.commandWithInputCalls, hasLength(1));
+      final call = sshService.commandWithInputCalls.single;
+      expect(
+        call.command,
+        contains('-o keylocation=prompt -o compression=lz4 '),
+      );
+      expect(call.command, contains("'tank/home/secrets-compressed'"));
     },
   );
 

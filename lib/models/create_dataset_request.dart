@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
+
 enum CreateDatasetEncryptionType {
   off,
   on,
@@ -40,6 +42,7 @@ class CreateDatasetRequest {
     required this.parentDataset,
     required this.datasetName,
     required this.encrypted,
+    this.compressionType,
     this.passphrase,
     this.keyFileBytes,
     this.keyFilePathOnServer,
@@ -49,6 +52,7 @@ class CreateDatasetRequest {
   final String parentDataset;
   final String datasetName;
   final bool encrypted;
+  final ZfsCompressionType? compressionType;
   final String? passphrase;
   final Uint8List? keyFileBytes;
   final String? keyFilePathOnServer;
