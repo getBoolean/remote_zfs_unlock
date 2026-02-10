@@ -230,6 +230,86 @@ class ServerDetailScreen extends HookConsumerWidget {
       });
     }
 
+    Future<void> deleteDataset(ZfsDataset dataset) async {
+      final confirmationController = TextEditingController();
+      final shouldProceed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete dataset'),
+          content: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: confirmationController,
+            builder: (context, value, child) {
+              final isExactMatch = value.text == dataset.name;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Permanently destroy `${dataset.name}`?\n\n'
+                    'This cannot be undone.',
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Type the dataset name to confirm:',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: confirmationController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      hintText: dataset.name,
+                      helperText: isExactMatch
+                          ? 'Name matches. You can delete now.'
+                          : 'Name must match exactly.',
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: confirmationController,
+              builder: (context, value, child) {
+                final isExactMatch = value.text == dataset.name;
+                return FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.onError,
+                  ),
+                  onPressed: isExactMatch
+                      ? () => Navigator.of(context).pop(true)
+                      : null,
+                  child: const Text('Delete'),
+                );
+              },
+            ),
+          ],
+        ),
+      );
+      confirmationController.dispose();
+      if (shouldProceed != true) {
+        return;
+      }
+
+      await withBusy(() async {
+        final secrets = await readSecrets();
+        await zfsService.deleteDataset(
+          profile: profile,
+          secrets: secrets,
+          datasetName: dataset.name,
+        );
+        datasets.value = await fetchDatasets();
+        showStatusSnack('Deleted `${dataset.name}`.');
+      });
+    }
+
     useEffect(() {
       Future<void>.microtask(refreshDatasets);
       return null;
@@ -318,6 +398,8 @@ class ServerDetailScreen extends HookConsumerWidget {
                               icon: const Icon(Icons.lock_open_outlined),
                               label: const Text('Unlock'),
                             );
+                      final canDeleteDataset =
+                          dataset.usedByDataset.trim().toUpperCase() == '234K';
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 6),
@@ -468,11 +550,25 @@ class ServerDetailScreen extends HookConsumerWidget {
                                   ],
                                 ],
                               ),
-                              if (dataset.isEncrypted) ...[
+                              if (dataset.isEncrypted || canDeleteDataset) ...[
                                 const SizedBox(height: 12),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [actionButton],
+                                  children: [
+                                    if (canDeleteDataset)
+                                      FilledButton.tonalIcon(
+                                        onPressed: loading.value
+                                            ? null
+                                            : () => deleteDataset(dataset),
+                                        icon: const Icon(Icons.delete_outline),
+                                        label: const Text('Delete'),
+                                      ),
+                                    if (dataset.isEncrypted) ...[
+                                      if (canDeleteDataset)
+                                        const SizedBox(width: 8),
+                                      actionButton,
+                                    ],
+                                  ],
                                 ),
                               ],
                             ],

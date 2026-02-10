@@ -336,6 +336,20 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
       contains("zfs unload-key 'tank/home'"),
     );
   });
+
+  test('deleteDataset calls zfs destroy', () async {
+    await zfsService.deleteDataset(
+      profile: profile,
+      secrets: secrets,
+      datasetName: 'tank/home/projects',
+    );
+
+    expect(sshService.commandWithInputCalls, hasLength(1));
+    expect(
+      sshService.commandWithInputCalls.single.command,
+      contains("zfs destroy 'tank/home/projects'"),
+    );
+  });
 }
 
 class _RecordingSshService extends SshService {
