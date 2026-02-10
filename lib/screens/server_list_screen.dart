@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
@@ -13,6 +14,7 @@ class ServerListScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profilesAsync = ref.watch(serverListProvider);
     final notifier = ref.read(serverListProvider.notifier);
+    final canAddServer = !kIsWeb;
 
     Future<void> openForm({ServerProfile? profile}) async {
       final initialSecrets = profile == null
@@ -74,16 +76,36 @@ class ServerListScreen extends HookConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => openForm(),
-        icon: const Icon(Icons.add),
-        label: const Text('Add server'),
-      ),
+      floatingActionButton: !canAddServer
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => openForm(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add server'),
+            ),
       body: profilesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) =>
             Center(child: Text('Failed to load profiles: $error')),
         data: (profiles) {
+          if (kIsWeb) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.info_outline, size: 44),
+                    SizedBox(height: 12),
+                    Text(
+                      'Connecting to SSH servers is unsupported on web.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
           if (profiles.isEmpty) {
             return const Center(
               child: Padding(
