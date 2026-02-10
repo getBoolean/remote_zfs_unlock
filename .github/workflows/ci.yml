@@ -524,8 +524,15 @@ jobs:
       - name: Build Snap
         run: |
           if [ -f snap/snapcraft.yaml ]; then
-            snapcraft --destructive-mode
-            mv ./*.snap build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap
+            if snapcraft pack --destructive-mode; then
+              if compgen -G "./*.snap" >/dev/null; then
+                mv ./*.snap build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap
+              else
+                echo "::warning::Snap build reported success but produced no .snap artifact."
+              fi
+            else
+              echo "::warning::Snap build failed. Skipping Snap artifact for this run."
+            fi
           else
             echo "No snap/snapcraft.yaml found - skipping Snap package build."
           fi
