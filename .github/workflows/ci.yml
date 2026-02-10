@@ -127,7 +127,7 @@ jobs:
     permissions:
       pages: write
       id-token: write
-      contents: read
+      contents: write
       pull-requests: write
       issues: write
     env:
