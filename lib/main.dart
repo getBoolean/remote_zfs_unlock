@@ -34,6 +34,8 @@ class MainApp extends StatelessWidget {
     return MaterialApp(
       title: 'Remote ZFS Unlock',
       theme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
+      darkTheme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
+      themeMode: ThemeMode.system,
       home: const ServerListScreen(),
     );
   }
