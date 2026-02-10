@@ -37,6 +37,56 @@ class ZfsService {
     return parseDatasets(output);
   }
 
+  Future<List<String>> suggestServerKeyFilePaths({
+    required ServerProfile profile,
+    required ServerSecrets secrets,
+    required String partialPath,
+    int limit = 30,
+  }) async {
+    final query = partialPath.trim();
+    if (query.isEmpty) {
+      return const [];
+    }
+
+    final safeLimit = limit.clamp(1, 100);
+    final output = await _sshService.runCommand(
+      profile: profile,
+      secrets: secrets,
+      command:
+          "q=${_shellQuote(query)}; "
+          "if [ \"\${q#*/}\" = \"\$q\" ]; then "
+          "d='.'; "
+          "b=\"\$q\"; "
+          "else "
+          "d=\${q%/*}; "
+          "b=\${q##*/}; "
+          "if [ -z \"\$d\" ]; then d='/'; fi; "
+          'fi; '
+          "[ -d \"\$d\" ] || exit 0; "
+          "count=0; "
+          "for e in \"\$d\"/\"\$b\"*; do "
+          "[ -e \"\$e\" ] || continue; "
+          "if [ -d \"\$e\" ]; then printf '%s/\\n' \"\$e\"; else printf '%s\\n' \"\$e\"; fi; "
+          "count=\$((count+1)); "
+          "[ \$count -ge $safeLimit ] && break; "
+          'done',
+    );
+
+    final unique = <String>{};
+    final suggestions = <String>[];
+    for (final rawLine in output.split('\n')) {
+      final line = rawLine.trim();
+      if (line.isEmpty) {
+        continue;
+      }
+      final normalized = _normalizeSuggestedPath(line);
+      if (unique.add(normalized)) {
+        suggestions.add(normalized);
+      }
+    }
+    return suggestions;
+  }
+
   List<ZfsDataset> parseDatasets(String output) {
     final datasets = <ZfsDataset>[];
     for (final rawLine in output.split('\n')) {
@@ -51,8 +101,8 @@ class ZfsService {
       datasets.add(
         ZfsDataset(
           name: columns[0],
-          encryption: columns[1],
-          keyStatus: columns[2],
+          encryption: _parseEncryptionType(columns[1]),
+          keyStatus: _parseKeyStatusType(columns[2]),
           mounted: columns[3],
           usedByDataset: columns[4],
           available: columns[5],
@@ -68,6 +118,30 @@ class ZfsService {
     return datasets;
   }
 
+  ZfsEncryptionType _parseEncryptionType(String rawValue) {
+    switch (rawValue.trim().toLowerCase()) {
+      case 'on':
+        return ZfsEncryptionType.on;
+      case 'off':
+      case '-':
+        return ZfsEncryptionType.off;
+      case 'aes-128-ccm':
+        return ZfsEncryptionType.aes128Ccm;
+      case 'aes-192-ccm':
+        return ZfsEncryptionType.aes192Ccm;
+      case 'aes-256-ccm':
+        return ZfsEncryptionType.aes256Ccm;
+      case 'aes-128-gcm':
+        return ZfsEncryptionType.aes128Gcm;
+      case 'aes-192-gcm':
+        return ZfsEncryptionType.aes192Gcm;
+      case 'aes-256-gcm':
+        return ZfsEncryptionType.aes256Gcm;
+      default:
+        return ZfsEncryptionType.unknown;
+    }
+  }
+
   ZfsDatasetType _parseDatasetType(String rawValue) {
     switch (rawValue.trim().toLowerCase()) {
       case 'filesystem':
@@ -80,6 +154,20 @@ class ZfsService {
         return ZfsDatasetType.bookmark;
       default:
         return ZfsDatasetType.unknown;
+    }
+  }
+
+  ZfsKeyStatusType _parseKeyStatusType(String rawValue) {
+    switch (rawValue.trim().toLowerCase()) {
+      case '-':
+      case 'none':
+        return ZfsKeyStatusType.none;
+      case 'unavailable':
+        return ZfsKeyStatusType.unavailable;
+      case 'available':
+        return ZfsKeyStatusType.available;
+      default:
+        return ZfsKeyStatusType.unknown;
     }
   }
 
@@ -202,11 +290,15 @@ class ZfsService {
     }
 
     final fullDatasetName = '$parentDataset/$datasetName';
+    final compressionOption = request.compressionType;
+    final compressionFlag = compressionOption == null
+        ? ''
+        : ' -o compression=${_zfsCompressionValue(compressionOption)}';
     if (!request.encrypted) {
       final result = await _sshService.runCommandWithInput(
         profile: profile,
         secrets: secrets,
-        command: 'zfs create ${_shellQuote(fullDatasetName)}',
+        command: 'zfs create$compressionFlag ${_shellQuote(fullDatasetName)}',
         stdinData: const [],
       );
       if (result.exitCode != 0) {
@@ -216,19 +308,69 @@ class ZfsService {
     }
 
     final passphrase = request.passphrase?.trim();
-    if (passphrase == null || passphrase.isEmpty) {
-      throw ArgumentError('Passphrase is required for encrypted datasets.');
+    final keyFileBytes = request.keyFileBytes;
+    final keyFilePathOnServer = request.keyFilePathOnServer?.trim();
+    final hasPassphrase = passphrase != null && passphrase.isNotEmpty;
+    final hasKeyFile = keyFileBytes != null && keyFileBytes.isNotEmpty;
+    final hasKeyFilePathOnServer =
+        keyFilePathOnServer != null && keyFilePathOnServer.isNotEmpty;
+    final credentialInputCount =
+        (hasPassphrase ? 1 : 0) +
+        (hasKeyFile ? 1 : 0) +
+        (hasKeyFilePathOnServer ? 1 : 0);
+    if (credentialInputCount > 1) {
+      throw ArgumentError(
+        'Use exactly one encrypted key input: passphrase, uploaded keyfile, or server keyfile path.',
+      );
     }
-    final result = await _sshService.runCommandWithInput(
-      profile: profile,
-      secrets: secrets,
-      command:
-          'zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt ${_shellQuote(fullDatasetName)}',
-      stdinData: '$passphrase\n'.codeUnits,
+    if (hasPassphrase) {
+      final result = await _sshService.runCommandWithInput(
+        profile: profile,
+        secrets: secrets,
+        command:
+            'zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt$compressionFlag ${_shellQuote(fullDatasetName)}',
+        stdinData: '$passphrase\n'.codeUnits,
+      );
+      if (result.exitCode != 0) {
+        throw StateError(_joinStdio(result.stdout, result.stderr));
+      }
+      return;
+    }
+    if (hasKeyFile) {
+      if (keyFileBytes.length != 32) {
+        throw ArgumentError('Raw keyfile must be exactly 32 bytes (256 bit).');
+      }
+      final encryption = request.keyFileEncryptionType.zfsValue;
+      final result = await _sshService.runCommandWithInput(
+        profile: profile,
+        secrets: secrets,
+        command:
+            'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=prompt$compressionFlag ${_shellQuote(fullDatasetName)}',
+        stdinData: Uint8List.fromList(keyFileBytes),
+      );
+      if (result.exitCode != 0) {
+        throw StateError(_joinStdio(result.stdout, result.stderr));
+      }
+      return;
+    }
+    if (hasKeyFilePathOnServer) {
+      final encryption = request.keyFileEncryptionType.zfsValue;
+      final keyLocation = _buildServerKeyLocation(keyFilePathOnServer);
+      final result = await _sshService.runCommandWithInput(
+        profile: profile,
+        secrets: secrets,
+        command:
+            'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=${_shellQuote(keyLocation)}$compressionFlag ${_shellQuote(fullDatasetName)}',
+        stdinData: const [],
+      );
+      if (result.exitCode != 0) {
+        throw StateError(_joinStdio(result.stdout, result.stderr));
+      }
+      return;
+    }
+    throw ArgumentError(
+      'Passphrase, uploaded keyfile, or server keyfile path is required for encrypted datasets.',
     );
-    if (result.exitCode != 0) {
-      throw StateError(_joinStdio(result.stdout, result.stderr));
-    }
   }
 
   Future<void> unlockDataset({
@@ -252,6 +394,7 @@ class ZfsService {
         if (result.exitCode != 0) {
           throw StateError(_joinStdio(result.stdout, result.stderr));
         }
+        return;
       case UnlockMethod.keyFile:
         final keyFileBytes = request.keyFileBytes;
         if (keyFileBytes == null || keyFileBytes.isEmpty) {
@@ -284,6 +427,23 @@ class ZfsService {
             command: 'rm -f ${_shellQuote(tempPath)}',
           );
         }
+      case UnlockMethod.keyFilePathOnServer:
+        final keyFilePathOnServer = request.keyFilePathOnServer?.trim();
+        if (keyFilePathOnServer == null || keyFilePathOnServer.isEmpty) {
+          throw ArgumentError('Key file path on server is required.');
+        }
+        final locator = _buildServerKeyLocation(keyFilePathOnServer);
+        final loadResult = await _sshService.runCommandWithInput(
+          profile: profile,
+          secrets: secrets,
+          command:
+              'zfs load-key -L ${_shellQuote(locator)} ${_shellQuote(datasetName)}',
+          stdinData: const [],
+        );
+        if (loadResult.exitCode != 0) {
+          throw StateError(_joinStdio(loadResult.stdout, loadResult.stderr));
+        }
+        return;
     }
   }
 
@@ -335,6 +495,22 @@ class ZfsService {
     }
   }
 
+  Future<void> deleteDataset({
+    required ServerProfile profile,
+    required ServerSecrets secrets,
+    required String datasetName,
+  }) async {
+    final result = await _sshService.runCommandWithInput(
+      profile: profile,
+      secrets: secrets,
+      command: 'zfs destroy ${_shellQuote(datasetName)}',
+      stdinData: const [],
+    );
+    if (result.exitCode != 0) {
+      throw StateError(_joinStdio(result.stdout, result.stderr));
+    }
+  }
+
   String _joinStdio(String stdout, String stderr) {
     final out = stdout.trim();
     final err = stderr.trim();
@@ -352,5 +528,57 @@ class ZfsService {
 
   String _shellQuote(String value) {
     return "'${value.replaceAll("'", "'\"'\"'")}'";
+  }
+
+  String _buildServerKeyLocation(String rawPathOrUri) {
+    final value = rawPathOrUri.trim();
+    if (value.isEmpty) {
+      throw ArgumentError('Server keyfile path is required.');
+    }
+    if (value.startsWith('file://')) {
+      if (value.length <= 'file://'.length) {
+        throw ArgumentError('Server keyfile URI is missing a path.');
+      }
+      return value;
+    }
+    if (!value.startsWith('/')) {
+      throw ArgumentError(
+        'Server keyfile path must be an absolute path or file:// URI.',
+      );
+    }
+    return 'file://$value';
+  }
+
+  String _zfsCompressionValue(ZfsCompressionType value) {
+    switch (value) {
+      case ZfsCompressionType.on:
+        return 'on';
+      case ZfsCompressionType.off:
+        return 'off';
+      case ZfsCompressionType.lzjb:
+        return 'lzjb';
+      case ZfsCompressionType.gzip:
+        return 'gzip';
+      case ZfsCompressionType.zle:
+        return 'zle';
+      case ZfsCompressionType.lz4:
+        return 'lz4';
+      case ZfsCompressionType.zstd:
+        return 'zstd';
+      case ZfsCompressionType.zstdFast:
+        return 'zstd-fast';
+      case ZfsCompressionType.unknown:
+        throw ArgumentError('Unknown compression type cannot be used.');
+    }
+  }
+
+  String _normalizeSuggestedPath(String value) {
+    if (value.startsWith('./')) {
+      return value.substring(2);
+    }
+    if (value.startsWith('//')) {
+      return '/${value.replaceFirst(RegExp(r'^/+'), '')}';
+    }
+    return value;
   }
 }

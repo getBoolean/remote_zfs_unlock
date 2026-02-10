@@ -58,7 +58,8 @@ class SshService {
         final sftp = await client.sftp();
         final file = await sftp.open(
           remotePath,
-          mode: SftpFileOpenMode.create |
+          mode:
+              SftpFileOpenMode.create |
               SftpFileOpenMode.truncate |
               SftpFileOpenMode.write,
         );
@@ -98,7 +99,9 @@ class SshService {
     }
     final pem = secrets.privateKeyPem;
     if (pem == null || pem.trim().isEmpty) {
-      throw StateError('Private key authentication selected but key is missing.');
+      throw StateError(
+        'Private key authentication selected but key is missing.',
+      );
     }
     return SSHKeyPair.fromPem(pem, secrets.privateKeyPassphrase);
   }

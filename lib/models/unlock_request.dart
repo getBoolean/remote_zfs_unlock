@@ -10,19 +10,29 @@ enum UnlockMethod {
   passphrase,
   @MappableValue('keyFile')
   keyFile,
+  @MappableValue('keyFilePathOnServer')
+  keyFilePathOnServer,
 }
 
 @MappableClass()
 class UnlockRequest with UnlockRequestMappable {
   const UnlockRequest.passphrase(this.passphrase)
     : method = UnlockMethod.passphrase,
-      keyFileBytes = null;
+      keyFileBytes = null,
+      keyFilePathOnServer = null;
 
   const UnlockRequest.keyFile(this.keyFileBytes)
     : method = UnlockMethod.keyFile,
-      passphrase = null;
+      passphrase = null,
+      keyFilePathOnServer = null;
+
+  const UnlockRequest.keyFilePathOnServer(this.keyFilePathOnServer)
+    : method = UnlockMethod.keyFilePathOnServer,
+      passphrase = null,
+      keyFileBytes = null;
 
   final UnlockMethod method;
   final String? passphrase;
   final Uint8List? keyFileBytes;
+  final String? keyFilePathOnServer;
 }

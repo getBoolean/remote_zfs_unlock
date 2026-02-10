@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:path_provider/path_provider.dart';
@@ -8,8 +9,13 @@ import 'package:remote_zfs_unlock/screens/server_list_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final appDir = await getApplicationDocumentsDirectory();
-  Hive.init(appDir.path);
+  if (kIsWeb) {
+    // Web uses IndexedDB; an arbitrary base path is sufficient.
+    Hive.init('remote_zfs_unlock');
+  } else {
+    final appDir = await getApplicationDocumentsDirectory();
+    Hive.init(appDir.path);
+  }
   final box = await Hive.openBox<Map<dynamic, dynamic>>(serverProfilesBoxName);
 
   runApp(
@@ -28,6 +34,8 @@ class MainApp extends StatelessWidget {
     return MaterialApp(
       title: 'Remote ZFS Unlock',
       theme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
+      darkTheme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
+      themeMode: ThemeMode.system,
       home: const ServerListScreen(),
     );
   }
