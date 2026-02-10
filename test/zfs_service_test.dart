@@ -6,6 +6,7 @@ import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
+import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/services/ssh_service.dart';
 import 'package:remote_zfs_unlock/services/zfs_service.dart';
 
@@ -30,8 +31,8 @@ void main() {
 
   test('parseDatasets extracts encrypted/key status values', () {
     const output = '''
-tank/home\taes-256-gcm\tavailable\tyes
-tank/media\toff\t-\tyes
+tank/home\taes-256-gcm\tavailable\tyes\t10G\t100G\tfilesystem\ton\tzstd-3\tpassphrase\tprompt\t/tank/home
+tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
 ''';
     final datasets = zfsService.parseDatasets(output);
 
@@ -39,8 +40,17 @@ tank/media\toff\t-\tyes
     expect(datasets.first.name, 'tank/home');
     expect(datasets.first.isEncrypted, isTrue);
     expect(datasets.first.isKeyLoaded, isTrue);
+    expect(datasets.first.usedByDataset, '10G');
+    expect(datasets.first.available, '100G');
+    expect(datasets.first.type, ZfsDatasetType.filesystem);
+    expect(datasets.first.dedup, ZfsDedupType.on);
+    expect(datasets.first.compression, ZfsCompressionType.zstd);
+    expect(datasets.first.keyFormat, ZfsKeyFormatType.passphrase);
+    expect(datasets.first.keyLocation, 'prompt');
+    expect(datasets.first.mountPoint, '/tank/home');
     expect(datasets.last.name, 'tank/media');
     expect(datasets.last.isEncrypted, isFalse);
+    expect(datasets.last.type, ZfsDatasetType.volume);
   });
 
   test('unlockDataset with passphrase sends stdin to zfs load-key', () async {

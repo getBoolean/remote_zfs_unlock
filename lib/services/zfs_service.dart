@@ -31,7 +31,8 @@ class ZfsService {
     final output = await _sshService.runCommand(
       profile: profile,
       secrets: secrets,
-      command: 'zfs list -H -o name,encryption,keystatus,mounted',
+      command:
+          'zfs list -H -o name,encryption,keystatus,mounted,usedbydataset,available,type,dedup,compression,keyformat,keylocation,mountpoint',
     );
     return parseDatasets(output);
   }
@@ -44,7 +45,7 @@ class ZfsService {
         continue;
       }
       final columns = line.split('\t');
-      if (columns.length < 4) {
+      if (columns.length < 12) {
         continue;
       }
       datasets.add(
@@ -53,10 +54,132 @@ class ZfsService {
           encryption: columns[1],
           keyStatus: columns[2],
           mounted: columns[3],
+          usedByDataset: columns[4],
+          available: columns[5],
+          type: _parseDatasetType(columns[6]),
+          dedup: _parseDedupType(columns[7]),
+          compression: _parseCompressionType(columns[8]),
+          keyFormat: _parseKeyFormatType(columns[9]),
+          keyLocation: columns[10],
+          mountPoint: columns[11],
         ),
       );
     }
     return datasets;
+  }
+
+  ZfsDatasetType _parseDatasetType(String rawValue) {
+    switch (rawValue.trim().toLowerCase()) {
+      case 'filesystem':
+        return ZfsDatasetType.filesystem;
+      case 'volume':
+        return ZfsDatasetType.volume;
+      case 'snapshot':
+        return ZfsDatasetType.snapshot;
+      case 'bookmark':
+        return ZfsDatasetType.bookmark;
+      default:
+        return ZfsDatasetType.unknown;
+    }
+  }
+
+  ZfsDedupType _parseDedupType(String rawValue) {
+    switch (rawValue.trim().toLowerCase()) {
+      case 'on':
+        return ZfsDedupType.on;
+      case 'off':
+        return ZfsDedupType.off;
+      case 'verify':
+        return ZfsDedupType.verify;
+      case 'sha256':
+        return ZfsDedupType.sha256;
+      case 'sha256,verify':
+        return ZfsDedupType.sha256Verify;
+      case 'sha512':
+        return ZfsDedupType.sha512;
+      case 'sha512,verify':
+        return ZfsDedupType.sha512Verify;
+      case 'skein':
+        return ZfsDedupType.skein;
+      case 'skein,verify':
+        return ZfsDedupType.skeinVerify;
+      case 'edonr,verify':
+        return ZfsDedupType.edonrVerify;
+      case 'blake3':
+        return ZfsDedupType.blake3;
+      case 'blake3,verify':
+        return ZfsDedupType.blake3Verify;
+      default:
+        return ZfsDedupType.unknown;
+    }
+  }
+
+  ZfsCompressionType _parseCompressionType(String rawValue) {
+    final normalized = rawValue.trim().toLowerCase();
+    switch (normalized) {
+      case 'on':
+        return ZfsCompressionType.on;
+      case 'off':
+        return ZfsCompressionType.off;
+      case 'lzjb':
+        return ZfsCompressionType.lzjb;
+      case 'gzip':
+      case 'gzip-1':
+      case 'gzip-2':
+      case 'gzip-3':
+      case 'gzip-4':
+      case 'gzip-5':
+      case 'gzip-6':
+      case 'gzip-7':
+      case 'gzip-8':
+      case 'gzip-9':
+        return ZfsCompressionType.gzip;
+      case 'zle':
+        return ZfsCompressionType.zle;
+      case 'lz4':
+        return ZfsCompressionType.lz4;
+      case 'zstd':
+      case 'zstd-1':
+      case 'zstd-2':
+      case 'zstd-3':
+      case 'zstd-4':
+      case 'zstd-5':
+      case 'zstd-6':
+      case 'zstd-7':
+      case 'zstd-8':
+      case 'zstd-9':
+      case 'zstd-10':
+      case 'zstd-11':
+      case 'zstd-12':
+      case 'zstd-13':
+      case 'zstd-14':
+      case 'zstd-15':
+      case 'zstd-16':
+      case 'zstd-17':
+      case 'zstd-18':
+      case 'zstd-19':
+        return ZfsCompressionType.zstd;
+      default:
+        if (normalized == 'zstd-fast' || normalized.startsWith('zstd-fast-')) {
+          return ZfsCompressionType.zstdFast;
+        }
+        return ZfsCompressionType.unknown;
+    }
+  }
+
+  ZfsKeyFormatType _parseKeyFormatType(String rawValue) {
+    switch (rawValue.trim().toLowerCase()) {
+      case 'none':
+        return ZfsKeyFormatType.none;
+      case 'raw':
+        return ZfsKeyFormatType.raw;
+      case 'hex':
+        return ZfsKeyFormatType.hex;
+      case 'passphrase':
+        return ZfsKeyFormatType.passphrase;
+      default:
+        return ZfsKeyFormatType.unknown;
+    }
   }
 
   Future<void> createDataset({
