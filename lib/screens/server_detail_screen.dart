@@ -36,7 +36,7 @@ class ServerDetailScreen extends HookConsumerWidget {
             content: Text(message),
             behavior: SnackBarBehavior.floating,
             backgroundColor: isError
-                ? Theme.of(context).colorScheme.errorContainer
+                ? Theme.of(context).colorScheme.error
                 : null,
           ),
         );
@@ -118,13 +118,25 @@ class ServerDetailScreen extends HookConsumerWidget {
 
       await withBusy(() async {
         final secrets = await readSecrets();
+        final isMounted = dataset.mounted.toLowerCase().trim() == 'yes';
+        if (isMounted) {
+          await zfsService.unmountDataset(
+            profile: profile,
+            secrets: secrets,
+            datasetName: dataset.name,
+          );
+        }
         await zfsService.lockDataset(
           profile: profile,
           secrets: secrets,
           datasetName: dataset.name,
         );
         datasets.value = await fetchDatasets();
-        showStatusSnack('Locked `${dataset.name}`.');
+        showStatusSnack(
+          isMounted
+              ? 'Unmounted and locked `${dataset.name}`.'
+              : 'Locked `${dataset.name}`.',
+        );
       });
     }
 
@@ -144,8 +156,19 @@ class ServerDetailScreen extends HookConsumerWidget {
           datasetName: dataset.name,
           request: request,
         );
+        if (dataset.type == ZfsDatasetType.filesystem) {
+          await zfsService.mountDataset(
+            profile: profile,
+            secrets: secrets,
+            datasetName: dataset.name,
+          );
+        }
         datasets.value = await fetchDatasets();
-        showStatusSnack('Unlocked `${dataset.name}`.');
+        showStatusSnack(
+          dataset.type == ZfsDatasetType.filesystem
+              ? 'Unlocked and mounted `${dataset.name}`.'
+              : 'Unlocked `${dataset.name}`.',
+        );
       });
     }
 
@@ -425,9 +448,9 @@ class ServerDetailScreen extends HookConsumerWidget {
                               ),
                               if (dataset.isEncrypted) ...[
                                 const SizedBox(height: 12),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: actionButton,
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [actionButton],
                                 ),
                               ],
                             ],

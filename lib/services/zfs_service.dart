@@ -303,6 +303,38 @@ class ZfsService {
     }
   }
 
+  Future<void> mountDataset({
+    required ServerProfile profile,
+    required ServerSecrets secrets,
+    required String datasetName,
+  }) async {
+    final result = await _sshService.runCommandWithInput(
+      profile: profile,
+      secrets: secrets,
+      command: 'zfs mount ${_shellQuote(datasetName)}',
+      stdinData: const [],
+    );
+    if (result.exitCode != 0) {
+      throw StateError(_joinStdio(result.stdout, result.stderr));
+    }
+  }
+
+  Future<void> unmountDataset({
+    required ServerProfile profile,
+    required ServerSecrets secrets,
+    required String datasetName,
+  }) async {
+    final result = await _sshService.runCommandWithInput(
+      profile: profile,
+      secrets: secrets,
+      command: 'zfs unmount ${_shellQuote(datasetName)}',
+      stdinData: const [],
+    );
+    if (result.exitCode != 0) {
+      throw StateError(_joinStdio(result.stdout, result.stderr));
+    }
+  }
+
   String _joinStdio(String stdout, String stderr) {
     final out = stdout.trim();
     final err = stderr.trim();

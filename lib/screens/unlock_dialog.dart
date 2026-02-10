@@ -67,9 +67,7 @@ class _UnlockDialogState extends State<UnlockDialog> {
                     label: const Text('Upload keyfile'),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(_keyFileName ?? 'No file selected'),
-                  ),
+                  Expanded(child: Text(_keyFileName ?? 'No file selected')),
                 ],
               ),
           ],
@@ -80,10 +78,7 @@ class _UnlockDialogState extends State<UnlockDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Unlock'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Unlock')),
       ],
     );
   }

@@ -17,7 +17,8 @@ Box<Map<dynamic, dynamic>> serverProfilesBox(Ref ref) =>
     Hive.box<Map<dynamic, dynamic>>(serverProfilesBoxName);
 
 @riverpod
-FlutterSecureStorage flutterSecureStorage(Ref ref) => const FlutterSecureStorage();
+FlutterSecureStorage flutterSecureStorage(Ref ref) =>
+    const FlutterSecureStorage();
 
 @riverpod
 SecureStorageService secureStorageService(Ref ref) {
@@ -38,7 +39,8 @@ ZfsService zfsService(Ref ref) => ZfsService(ref.watch(sshServiceProvider));
 @riverpod
 class ServerList extends _$ServerList {
   ServerRepository get _repository => ref.read(serverRepositoryProvider);
-  SecureStorageService get _secureStorage => ref.read(secureStorageServiceProvider);
+  SecureStorageService get _secureStorage =>
+      ref.read(secureStorageServiceProvider);
 
   @override
   Future<List<ServerProfile>> build() {
