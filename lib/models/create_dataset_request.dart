@@ -15,10 +15,10 @@ extension CreateDatasetEncryptionTypeValue on CreateDatasetEncryptionType? {
   String get zfsValue {
     switch (this) {
       case null:
-      case CreateDatasetEncryptionType.off:
-        return 'off';
       case CreateDatasetEncryptionType.on:
         return 'on';
+      case CreateDatasetEncryptionType.off:
+        return 'off';
       case CreateDatasetEncryptionType.aes128Ccm:
         return 'aes-128-ccm';
       case CreateDatasetEncryptionType.aes192Ccm:
