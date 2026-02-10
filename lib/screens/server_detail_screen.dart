@@ -232,6 +232,14 @@ class ServerDetailScreen extends HookConsumerWidget {
                           : 'Not encrypted';
                       final isMounted =
                           dataset.mounted.toLowerCase().trim() == 'yes';
+                      final typeLabel = _formatEnumName(dataset.type.name);
+                      final dedupLabel = _formatEnumName(dataset.dedup.name);
+                      final compressionLabel = _formatEnumName(
+                        dataset.compression.name,
+                      );
+                      final keyFormatLabel = _formatEnumName(
+                        dataset.keyFormat.name,
+                      );
                       final actionButton = !dataset.isEncrypted
                           ? const SizedBox.shrink()
                           : dataset.isKeyLoaded
@@ -314,6 +322,55 @@ class ServerDetailScreen extends HookConsumerWidget {
                                   ],
                                 ],
                               ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _DatasetPropertyChip(
+                                    label: 'Type',
+                                    value: typeLabel,
+                                    icon: Icons.category_outlined,
+                                  ),
+                                  _DatasetPropertyChip(
+                                    label: 'Used',
+                                    value: _displayValue(dataset.usedByDataset),
+                                    icon: Icons.data_usage_outlined,
+                                  ),
+                                  _DatasetPropertyChip(
+                                    label: 'Available',
+                                    value: _displayValue(dataset.available),
+                                    icon: Icons.storage_outlined,
+                                  ),
+                                  _DatasetPropertyChip(
+                                    label: 'Compression',
+                                    value: compressionLabel,
+                                    icon: Icons.compress_outlined,
+                                  ),
+                                  _DatasetPropertyChip(
+                                    label: 'Dedup',
+                                    value: dedupLabel,
+                                    icon: Icons.copy_all_outlined,
+                                  ),
+                                  _DatasetPropertyChip(
+                                    label: 'Mountpoint',
+                                    value: _displayValue(dataset.mountPoint),
+                                    icon: Icons.folder_open_outlined,
+                                  ),
+                                  if (dataset.isEncrypted) ...[
+                                    _DatasetPropertyChip(
+                                      label: 'Key format',
+                                      value: keyFormatLabel,
+                                      icon: Icons.vpn_key_outlined,
+                                    ),
+                                    _DatasetPropertyChip(
+                                      label: 'Key location',
+                                      value: _displayValue(dataset.keyLocation),
+                                      icon: Icons.location_on_outlined,
+                                    ),
+                                  ],
+                                ],
+                              ),
                               if (dataset.isEncrypted) ...[
                                 const SizedBox(height: 12),
                                 Align(
@@ -332,4 +389,45 @@ class ServerDetailScreen extends HookConsumerWidget {
       ),
     );
   }
+}
+
+class _DatasetPropertyChip extends StatelessWidget {
+  const _DatasetPropertyChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      avatar: Icon(icon, size: 16),
+      label: Text('$label: $value'),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+String _formatEnumName(String raw) {
+  final withSpaces = raw.replaceAllMapped(
+    RegExp('([a-z0-9])([A-Z])'),
+    (match) => '${match.group(1)} ${match.group(2)}',
+  );
+  return withSpaces
+      .split(' ')
+      .where((part) => part.trim().isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
+}
+
+String _displayValue(String raw) {
+  final value = raw.trim();
+  if (value.isEmpty || value == '-') {
+    return 'N/A';
+  }
+  return value;
 }
