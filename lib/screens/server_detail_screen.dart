@@ -9,6 +9,7 @@ import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
 import 'package:remote_zfs_unlock/screens/create_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
+import 'package:super_clipboard/super_clipboard.dart';
 
 class ServerDetailScreen extends HookConsumerWidget {
   const ServerDetailScreen({required this.profile, super.key});
@@ -75,6 +76,21 @@ class ServerDetailScreen extends HookConsumerWidget {
         );
         showStatusSnack(output.trim().isEmpty ? 'Connected.' : output.trim());
       });
+    }
+
+    Future<void> copyPropertyToClipboard({
+      required String label,
+      required String value,
+    }) async {
+      final clipboard = SystemClipboard.instance;
+      if (clipboard == null) {
+        showStatusSnack('Clipboard is unavailable on this platform.');
+        return;
+      }
+      final item = DataWriterItem();
+      item.add(Formats.plainText(value));
+      await clipboard.write([item]);
+      showStatusSnack('Copied $label.');
     }
 
     Future<void> lockDataset(ZfsDataset dataset) async {
@@ -331,42 +347,78 @@ class ServerDetailScreen extends HookConsumerWidget {
                                     label: 'Type',
                                     value: typeLabel,
                                     icon: Icons.category_outlined,
+                                    onPressed: () => copyPropertyToClipboard(
+                                      label: 'Type',
+                                      value: typeLabel,
+                                    ),
                                   ),
                                   _DatasetPropertyChip(
                                     label: 'Used',
                                     value: _displayValue(dataset.usedByDataset),
                                     icon: Icons.data_usage_outlined,
+                                    onPressed: () => copyPropertyToClipboard(
+                                      label: 'Used',
+                                      value: _displayValue(
+                                        dataset.usedByDataset,
+                                      ),
+                                    ),
                                   ),
                                   _DatasetPropertyChip(
                                     label: 'Available',
                                     value: _displayValue(dataset.available),
                                     icon: Icons.storage_outlined,
+                                    onPressed: () => copyPropertyToClipboard(
+                                      label: 'Available',
+                                      value: _displayValue(dataset.available),
+                                    ),
                                   ),
                                   _DatasetPropertyChip(
                                     label: 'Compression',
                                     value: compressionLabel,
                                     icon: Icons.compress_outlined,
+                                    onPressed: () => copyPropertyToClipboard(
+                                      label: 'Compression',
+                                      value: compressionLabel,
+                                    ),
                                   ),
                                   _DatasetPropertyChip(
                                     label: 'Dedup',
                                     value: dedupLabel,
                                     icon: Icons.copy_all_outlined,
+                                    onPressed: () => copyPropertyToClipboard(
+                                      label: 'Dedup',
+                                      value: dedupLabel,
+                                    ),
                                   ),
                                   _DatasetPropertyChip(
                                     label: 'Mountpoint',
                                     value: _displayValue(dataset.mountPoint),
                                     icon: Icons.folder_open_outlined,
+                                    onPressed: () => copyPropertyToClipboard(
+                                      label: 'Mountpoint',
+                                      value: _displayValue(dataset.mountPoint),
+                                    ),
                                   ),
                                   if (dataset.isEncrypted) ...[
                                     _DatasetPropertyChip(
                                       label: 'Key format',
                                       value: keyFormatLabel,
                                       icon: Icons.vpn_key_outlined,
+                                      onPressed: () => copyPropertyToClipboard(
+                                        label: 'Key format',
+                                        value: keyFormatLabel,
+                                      ),
                                     ),
                                     _DatasetPropertyChip(
                                       label: 'Key location',
                                       value: _displayValue(dataset.keyLocation),
                                       icon: Icons.location_on_outlined,
+                                      onPressed: () => copyPropertyToClipboard(
+                                        label: 'Key location',
+                                        value: _displayValue(
+                                          dataset.keyLocation,
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ],
@@ -396,18 +448,21 @@ class _DatasetPropertyChip extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    required this.onPressed,
   });
 
   final String label;
   final String value;
   final IconData icon;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
+    return ActionChip(
       avatar: Icon(icon, size: 16),
       label: Text('$label: $value'),
       visualDensity: VisualDensity.compact,
+      onPressed: onPressed,
     );
   }
 }
