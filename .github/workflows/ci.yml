@@ -115,7 +115,7 @@ jobs:
           flutter build web --release
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ github.event.repository.name }}-${{ env.BRANCH_NAME }}-web
           path: build/web
@@ -287,7 +287,7 @@ jobs:
           mv app-release.ipa ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-ios.ipa
 
       - name: Upload IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-ios
           path: build/ios/iphoneos/${{ env.APP_NAME }}-*.ipa
@@ -352,7 +352,7 @@ jobs:
       #     mv app-x86_64-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-x86_64.apk
 
       # - name: Upload Split APKs
-      #   uses: actions/upload-artifact@v4
+      #   uses: actions/upload-artifact@v6
       #   with:
       #     name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-split
       #     path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*.apk
@@ -373,7 +373,7 @@ jobs:
           mv app-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-universal.apk
 
       - name: Upload Universal APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-universal
           path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-universal.apk
@@ -394,7 +394,7 @@ jobs:
           mv app-release.aab ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-appbundle.aab
 
       - name: Upload Android App Bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-appbundle
           path: build/app/outputs/bundle/release/*.aab
@@ -454,7 +454,7 @@ jobs:
         shell: pwsh
 
       - name: Upload MSIX
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-windows
           path: build/windows/x64/runner/Release/*.msix
@@ -548,21 +548,21 @@ jobs:
           fi
 
       - name: Upload AppImage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-appimage
           path: build/${{ env.APP_NAME }}-*.AppImage
           if-no-files-found: error
 
       - name: Upload Snap
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-snap
           path: build/${{ env.APP_NAME }}-*.snap
           if-no-files-found: ignore
 
       - name: Upload Flatpak
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-flatpak
           path: build/${{ env.APP_NAME }}-*.flatpak
@@ -624,7 +624,7 @@ jobs:
             "build/macos/Build/Products/Release/${{ env.APP_NAME }}.app"
 
       - name: Upload DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-macos-dmg
           path: "/Users/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/*.dmg"
@@ -671,7 +671,7 @@ jobs:
   #     - name: Package as Windows MSIX
   #       run: dart run msix:create
   #     - name: Upload msix
-  #       uses: actions/upload-artifact@v4
+  #       uses: actions/upload-artifact@v6
   #       with:
   #         name: windows_msix
   #         path: build/windows/runner/Release/*.msix
