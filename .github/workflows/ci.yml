@@ -13,6 +13,7 @@ env:
   FLUTTER_CHANNEL: "beta"
   FLUTTER_VERSION: "3.41.0-0.3.pre"
   BRANCH_NAME: $(echo -n ${{ github.head_ref || github.ref_name }} | tr "/" "-")
+  BUILD_SUFFIX: $(if [[ "${{ github.ref }}" == refs/tags/* ]]; then echo -n "${{ github.ref_name }}" | tr "/" "-"; else echo -n "${{ github.sha }}" | cut -c1-6; fi)
 
 jobs:
   build_ios_without_signing:
@@ -26,6 +27,8 @@ jobs:
         run: |
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}" >> $GITHUB_ENV
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
+          echo "BUILD_SUFFIX=${{ env.BUILD_SUFFIX }}" >> $GITHUB_ENV
+          echo "BUILD_SUFFIX=${{ env.BUILD_SUFFIX }}"
 
       - name: Install and Setup Flutter version
         uses: subosito/flutter-action@v2
@@ -57,19 +60,19 @@ jobs:
           ln -s ../Runner.app
           cd ..
           zip -r app-release.ipa Payload
-          mv app-release.ipa ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-ios.ipa
+          mv app-release.ipa ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-ios.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-ios
-          path: build/ios/iphoneos/${{ env.APP_NAME }}-*.ipa
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-ios
+          path: build/ios/iphoneos/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-ios.ipa
 
       - name: Release IPA
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: build/ios/iphoneos/${{ env.APP_NAME }}-*.ipa
+          artifacts: build/ios/iphoneos/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-ios.ipa
           allowUpdates: true
           omitBodyDuringUpdate: true
 
@@ -84,6 +87,8 @@ jobs:
         run: |
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}" >> $GITHUB_ENV
           echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
+          echo "BUILD_SUFFIX=${{ env.BUILD_SUFFIX }}" >> $GITHUB_ENV
+          echo "BUILD_SUFFIX=${{ env.BUILD_SUFFIX }}"
 
       - name: Install Java JDK
         uses: actions/setup-java@v4
@@ -119,14 +124,14 @@ jobs:
       #     flutter pub get
       #     flutter build apk --release --split-per-abi
       #     cd build/app/outputs/flutter-apk
-      #     mv app-arm64-v8a-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-arm64-v8a.apk
-      #     mv app-armeabi-v7a-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-armeabi-v7a.apk
-      #     mv app-x86_64-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-x86_64.apk
+      #     mv app-arm64-v8a-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-arm64-v8a.apk
+      #     mv app-armeabi-v7a-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-armeabi-v7a.apk
+      #     mv app-x86_64-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-x86_64.apk
 
       # - name: Upload Split APKs
       #   uses: actions/upload-artifact@v4
       #   with:
-      #     name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-split
+      #     name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-split
       #     path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-*.apk
 
       # - name: Release Split APKs
@@ -142,19 +147,19 @@ jobs:
           flutter pub get
           flutter build apk --release
           cd build/app/outputs/flutter-apk
-          mv app-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-universal.apk
+          mv app-release.apk ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-universal.apk
 
       - name: Upload Universal APK
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-universal
-          path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-universal.apk
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-universal
+          path: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-universal.apk
 
       - name: Release Universal APKs
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-universal.apk
+          artifacts: build/app/outputs/flutter-apk/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-universal.apk
           allowUpdates: true
           omitBodyDuringUpdate: true
 
@@ -163,19 +168,19 @@ jobs:
           flutter pub get
           flutter build appbundle --release
           cd build/app/outputs/bundle/release
-          mv app-release.aab ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-appbundle.aab
+          mv app-release.aab ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-appbundle.aab
 
       - name: Upload Android App Bundle
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-android-appbundle
-          path: build/app/outputs/bundle/release/*.aab
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-appbundle
+          path: build/app/outputs/bundle/release/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-appbundle.aab
 
       - name: Release Android App Bundle
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: build/app/outputs/bundle/release/${{ env.APP_NAME }}-*.aab
+          artifacts: build/app/outputs/bundle/release/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-${{ env.BUILD_SUFFIX }}-android-appbundle.aab
           allowUpdates: true
           omitBodyDuringUpdate: true
 
