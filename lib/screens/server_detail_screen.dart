@@ -9,29 +9,42 @@ import 'package:remote_zfs_unlock/providers/app_providers.dart';
 import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
 
 class ServerDetailScreen extends HookConsumerWidget {
-  const ServerDetailScreen({
-    required this.profile,
-    super.key,
-  });
+  const ServerDetailScreen({required this.profile, super.key});
 
   final ServerProfile profile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loading = useState(false);
-    final statusMessage = useState<String?>(null);
     final datasets = useState<List<ZfsDataset>>(<ZfsDataset>[]);
 
     final zfsService = ref.watch(zfsServiceProvider);
     final notifier = ref.read(serverListProvider.notifier);
 
+    void showStatusSnack(String message, {bool isError = false}) {
+      if (!context.mounted) {
+        return;
+      }
+      final messenger = ScaffoldMessenger.of(context);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: isError
+                ? Theme.of(context).colorScheme.errorContainer
+                : null,
+          ),
+        );
+    }
+
     Future<void> withBusy(Future<void> Function() action) async {
       loading.value = true;
-      statusMessage.value = null;
       try {
         await action();
       } catch (error) {
-        statusMessage.value = '$error';
+        showStatusSnack('$error', isError: true);
       } finally {
         loading.value = false;
       }
@@ -41,16 +54,13 @@ class ServerDetailScreen extends HookConsumerWidget {
 
     Future<List<ZfsDataset>> fetchDatasets() async {
       final secrets = await readSecrets();
-      return zfsService.listDatasets(
-        profile: profile,
-        secrets: secrets,
-      );
+      return zfsService.listDatasets(profile: profile, secrets: secrets);
     }
 
     Future<void> refreshDatasets() {
       return withBusy(() async {
         datasets.value = await fetchDatasets();
-        statusMessage.value = 'Dataset list refreshed.';
+        showStatusSnack('Dataset list refreshed.');
       });
     }
 
@@ -61,7 +71,7 @@ class ServerDetailScreen extends HookConsumerWidget {
           profile: profile,
           secrets: secrets,
         );
-        statusMessage.value = output.trim().isEmpty ? 'Connected.' : output.trim();
+        showStatusSnack(output.trim().isEmpty ? 'Connected.' : output.trim());
       });
     }
 
@@ -96,7 +106,7 @@ class ServerDetailScreen extends HookConsumerWidget {
           datasetName: dataset.name,
         );
         datasets.value = await fetchDatasets();
-        statusMessage.value = 'Locked `${dataset.name}`.';
+        showStatusSnack('Locked `${dataset.name}`.');
       });
     }
 
@@ -117,17 +127,14 @@ class ServerDetailScreen extends HookConsumerWidget {
           request: request,
         );
         datasets.value = await fetchDatasets();
-        statusMessage.value = 'Unlocked `${dataset.name}`.';
+        showStatusSnack('Unlocked `${dataset.name}`.');
       });
     }
 
-    useEffect(
-      () {
-        Future<void>.microtask(refreshDatasets);
-        return null;
-      },
-      const [],
-    );
+    useEffect(() {
+      Future<void>.microtask(refreshDatasets);
+      return null;
+    }, const []);
 
     return Scaffold(
       appBar: AppBar(
@@ -148,44 +155,132 @@ class ServerDetailScreen extends HookConsumerWidget {
       body: Column(
         children: [
           if (loading.value) const LinearProgressIndicator(),
-          if (statusMessage.value != null)
-            MaterialBanner(
-              content: Text(statusMessage.value!),
-              actions: [
-                TextButton(
-                  onPressed: () => statusMessage.value = null,
-                  child: const Text('Dismiss'),
-                ),
-              ],
-            ),
           Expanded(
-            child: ListView.separated(
-              itemCount: datasets.value.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final dataset = datasets.value[index];
-                final encryptedLabel = dataset.isEncrypted ? 'encrypted' : 'not encrypted';
-                final actionButton = !dataset.isEncrypted
-                    ? const SizedBox.shrink()
-                    : dataset.isKeyLoaded
-                        ? FilledButton.tonal(
-                            onPressed: loading.value ? null : () => lockDataset(dataset),
-                            child: const Text('Lock'),
-                          )
-                        : FilledButton(
-                            onPressed: loading.value ? null : () => unlockDataset(dataset),
-                            child: const Text('Unlock'),
-                          );
+            child: datasets.value.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.inventory_2_outlined, size: 44),
+                          SizedBox(height: 12),
+                          Text(
+                            'No datasets found for this server.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: datasets.value.length,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    itemBuilder: (context, index) {
+                      final dataset = datasets.value[index];
+                      final encryptedLabel = dataset.isEncrypted
+                          ? 'Encrypted'
+                          : 'Not encrypted';
+                      final isMounted =
+                          dataset.mounted.toLowerCase().trim() == 'yes';
+                      final actionButton = !dataset.isEncrypted
+                          ? const SizedBox.shrink()
+                          : dataset.isKeyLoaded
+                          ? FilledButton.tonalIcon(
+                              onPressed: loading.value
+                                  ? null
+                                  : () => lockDataset(dataset),
+                              icon: const Icon(Icons.lock_outline),
+                              label: const Text('Lock'),
+                            )
+                          : FilledButton.icon(
+                              onPressed: loading.value
+                                  ? null
+                                  : () => unlockDataset(dataset),
+                              icon: const Icon(Icons.lock_open_outlined),
+                              label: const Text('Unlock'),
+                            );
 
-                return ListTile(
-                  title: Text(dataset.name),
-                  subtitle: Text(
-                    '$encryptedLabel - key: ${dataset.keyStatus} - mounted: ${dataset.mounted}',
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      dataset.name,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                  ),
+                                  Chip(
+                                    avatar: Icon(
+                                      dataset.isEncrypted
+                                          ? Icons.shield_outlined
+                                          : Icons.shield_moon_outlined,
+                                      size: 16,
+                                    ),
+                                    label: Text(encryptedLabel),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 6,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isMounted
+                                            ? Icons.check_circle_outline
+                                            : Icons.cancel_outlined,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isMounted ? 'Mounted' : 'Not mounted',
+                                      ),
+                                    ],
+                                  ),
+                                  if (dataset.isEncrypted) ...[
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.vpn_key_outlined,
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text('Key: ${dataset.keyStatus}'),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              if (dataset.isEncrypted) ...[
+                                const SizedBox(height: 12),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: actionButton,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  trailing: actionButton,
-                );
-              },
-            ),
           ),
         ],
       ),

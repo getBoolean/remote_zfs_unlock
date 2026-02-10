@@ -14,9 +14,7 @@ class ServerListScreen extends HookConsumerWidget {
     final profilesAsync = ref.watch(serverListProvider);
     final notifier = ref.read(serverListProvider.notifier);
 
-    Future<void> openForm({
-      ServerProfile? profile,
-    }) async {
+    Future<void> openForm({ServerProfile? profile}) async {
       final initialSecrets = profile == null
           ? const ServerSecrets()
           : await notifier.readSecrets(profile.id);
@@ -35,7 +33,10 @@ class ServerListScreen extends HookConsumerWidget {
         return;
       }
 
-      await notifier.saveProfile(profile: result.profile, secrets: result.secrets);
+      await notifier.saveProfile(
+        profile: result.profile,
+        secrets: result.secrets,
+      );
     }
 
     Future<void> deleteProfile(ServerProfile profile) async {
@@ -80,42 +81,78 @@ class ServerListScreen extends HookConsumerWidget {
       ),
       body: profilesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Failed to load profiles: $error')),
+        error: (error, _) =>
+            Center(child: Text('Failed to load profiles: $error')),
         data: (profiles) {
           if (profiles.isEmpty) {
             return const Center(
-              child: Text('No servers yet. Tap "Add server" to begin.'),
-            );
-          }
-          return ListView.separated(
-            itemCount: profiles.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final profile = profiles[index];
-              return ListTile(
-                title: Text(profile.name),
-                subtitle: Text('${profile.username}@${profile.host}:${profile.port}'),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ServerDetailScreen(profile: profile),
-                    ),
-                  );
-                },
-                trailing: Wrap(
-                  spacing: 4,
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      tooltip: 'Edit',
-                      onPressed: () => openForm(profile: profile),
-                      icon: const Icon(Icons.edit),
-                    ),
-                    IconButton(
-                      tooltip: 'Delete',
-                      onPressed: () => deleteProfile(profile),
-                      icon: const Icon(Icons.delete),
+                    Icon(Icons.dns_outlined, size: 44),
+                    SizedBox(height: 12),
+                    Text(
+                      'No servers yet. Tap "Add server" to begin.',
+                      textAlign: TextAlign.center,
                     ),
                   ],
+                ),
+              ),
+            );
+          }
+          return ListView.builder(
+            itemCount: profiles.length,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            itemBuilder: (context, index) {
+              final profile = profiles[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  leading: CircleAvatar(
+                    child: Text(
+                      profile.name.trim().isEmpty
+                          ? '?'
+                          : profile.name.trim()[0].toUpperCase(),
+                    ),
+                  ),
+                  title: Text(
+                    profile.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${profile.username}@${profile.host}:${profile.port}',
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ServerDetailScreen(profile: profile),
+                      ),
+                    );
+                  },
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit',
+                        onPressed: () => openForm(profile: profile),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Delete',
+                        onPressed: () => deleteProfile(profile),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
