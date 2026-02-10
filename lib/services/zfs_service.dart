@@ -51,8 +51,8 @@ class ZfsService {
       datasets.add(
         ZfsDataset(
           name: columns[0],
-          encryption: columns[1],
-          keyStatus: columns[2],
+          encryption: _parseEncryptionType(columns[1]),
+          keyStatus: _parseKeyStatusType(columns[2]),
           mounted: columns[3],
           usedByDataset: columns[4],
           available: columns[5],
@@ -68,6 +68,30 @@ class ZfsService {
     return datasets;
   }
 
+  ZfsEncryptionType _parseEncryptionType(String rawValue) {
+    switch (rawValue.trim().toLowerCase()) {
+      case 'on':
+        return ZfsEncryptionType.on;
+      case 'off':
+      case '-':
+        return ZfsEncryptionType.off;
+      case 'aes-128-ccm':
+        return ZfsEncryptionType.aes128Ccm;
+      case 'aes-192-ccm':
+        return ZfsEncryptionType.aes192Ccm;
+      case 'aes-256-ccm':
+        return ZfsEncryptionType.aes256Ccm;
+      case 'aes-128-gcm':
+        return ZfsEncryptionType.aes128Gcm;
+      case 'aes-192-gcm':
+        return ZfsEncryptionType.aes192Gcm;
+      case 'aes-256-gcm':
+        return ZfsEncryptionType.aes256Gcm;
+      default:
+        return ZfsEncryptionType.unknown;
+    }
+  }
+
   ZfsDatasetType _parseDatasetType(String rawValue) {
     switch (rawValue.trim().toLowerCase()) {
       case 'filesystem':
@@ -80,6 +104,20 @@ class ZfsService {
         return ZfsDatasetType.bookmark;
       default:
         return ZfsDatasetType.unknown;
+    }
+  }
+
+  ZfsKeyStatusType _parseKeyStatusType(String rawValue) {
+    switch (rawValue.trim().toLowerCase()) {
+      case '-':
+      case 'none':
+        return ZfsKeyStatusType.none;
+      case 'unavailable':
+        return ZfsKeyStatusType.unavailable;
+      case 'available':
+        return ZfsKeyStatusType.available;
+      default:
+        return ZfsKeyStatusType.unknown;
     }
   }
 
@@ -216,19 +254,64 @@ class ZfsService {
     }
 
     final passphrase = request.passphrase?.trim();
-    if (passphrase == null || passphrase.isEmpty) {
-      throw ArgumentError('Passphrase is required for encrypted datasets.');
+    final keyFileBytes = request.keyFileBytes;
+    final hasPassphrase = passphrase != null && passphrase.isNotEmpty;
+    final hasKeyFile = keyFileBytes != null && keyFileBytes.isNotEmpty;
+    if (hasPassphrase && hasKeyFile) {
+      throw ArgumentError(
+        'Use either a passphrase or keyfile for encrypted datasets, not both.',
+      );
     }
-    final result = await _sshService.runCommandWithInput(
-      profile: profile,
-      secrets: secrets,
-      command:
-          'zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt ${_shellQuote(fullDatasetName)}',
-      stdinData: '$passphrase\n'.codeUnits,
+    if (hasPassphrase) {
+      final result = await _sshService.runCommandWithInput(
+        profile: profile,
+        secrets: secrets,
+        command:
+            'zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt ${_shellQuote(fullDatasetName)}',
+        stdinData: '$passphrase\n'.codeUnits,
+      );
+      if (result.exitCode != 0) {
+        throw StateError(_joinStdio(result.stdout, result.stderr));
+      }
+      return;
+    }
+    if (hasKeyFile) {
+      if (keyFileBytes.length != 32) {
+        throw ArgumentError('Raw keyfile must be exactly 32 bytes (256 bit).');
+      }
+      final encryption = request.keyFileEncryptionType.zfsValue;
+      final tempPath =
+          '/tmp/remote_zfs_unlock_${Random().nextInt(1 << 32)}.key';
+      await _sshService.uploadBytes(
+        profile: profile,
+        secrets: secrets,
+        bytes: Uint8List.fromList(keyFileBytes),
+        remotePath: tempPath,
+      );
+      try {
+        final locator = 'file://$tempPath';
+        final result = await _sshService.runCommandWithInput(
+          profile: profile,
+          secrets: secrets,
+          command:
+              'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=${_shellQuote(locator)} ${_shellQuote(fullDatasetName)}',
+          stdinData: const [],
+        );
+        if (result.exitCode != 0) {
+          throw StateError(_joinStdio(result.stdout, result.stderr));
+        }
+      } finally {
+        await _sshService.runCommand(
+          profile: profile,
+          secrets: secrets,
+          command: 'rm -f ${_shellQuote(tempPath)}',
+        );
+      }
+      return;
+    }
+    throw ArgumentError(
+      'Passphrase or keyfile is required for encrypted datasets.',
     );
-    if (result.exitCode != 0) {
-      throw StateError(_joinStdio(result.stdout, result.stderr));
-    }
   }
 
   Future<void> unlockDataset({
@@ -252,6 +335,7 @@ class ZfsService {
         if (result.exitCode != 0) {
           throw StateError(_joinStdio(result.stdout, result.stderr));
         }
+        return;
       case UnlockMethod.keyFile:
         final keyFileBytes = request.keyFileBytes;
         if (keyFileBytes == null || keyFileBytes.isEmpty) {

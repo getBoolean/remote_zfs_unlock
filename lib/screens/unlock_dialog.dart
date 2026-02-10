@@ -5,14 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
 
 class UnlockDialog extends StatefulWidget {
-  const UnlockDialog({super.key});
+  const UnlockDialog({required this.allowedMethod, super.key});
+
+  final UnlockMethod allowedMethod;
 
   @override
   State<UnlockDialog> createState() => _UnlockDialogState();
 }
 
 class _UnlockDialogState extends State<UnlockDialog> {
-  UnlockMethod _method = UnlockMethod.passphrase;
   final _passphraseController = TextEditingController();
   Uint8List? _keyFileBytes;
   String? _keyFileName;
@@ -33,26 +34,7 @@ class _UnlockDialogState extends State<UnlockDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SegmentedButton<UnlockMethod>(
-              segments: const [
-                ButtonSegment<UnlockMethod>(
-                  value: UnlockMethod.passphrase,
-                  label: Text('Passphrase'),
-                ),
-                ButtonSegment<UnlockMethod>(
-                  value: UnlockMethod.keyFile,
-                  label: Text('Keyfile'),
-                ),
-              ],
-              selected: {_method},
-              onSelectionChanged: (selection) {
-                if (selection.isEmpty) {
-                  return;
-                }
-                setState(() => _method = selection.first);
-              },
-            ),
-            if (_method == UnlockMethod.passphrase)
+            if (widget.allowedMethod == UnlockMethod.passphrase)
               TextField(
                 controller: _passphraseController,
                 decoration: const InputDecoration(labelText: 'Passphrase'),
@@ -103,9 +85,10 @@ class _UnlockDialogState extends State<UnlockDialog> {
   }
 
   void _submit() {
-    if (_method == UnlockMethod.passphrase) {
+    if (widget.allowedMethod == UnlockMethod.passphrase) {
       final passphrase = _passphraseController.text;
       if (passphrase.trim().isEmpty) {
+        _showValidationError('Passphrase is required.');
         return;
       }
       Navigator.of(context).pop(UnlockRequest.passphrase(passphrase));
@@ -113,8 +96,30 @@ class _UnlockDialogState extends State<UnlockDialog> {
     }
 
     if (_keyFileBytes == null || _keyFileBytes!.isEmpty) {
+      _showValidationError('Keyfile is required.');
+      return;
+    }
+    final byteLength = _keyFileBytes!.length;
+    if (byteLength != 32) {
+      _showValidationError(
+        'Keyfile must be exactly 256 bit (32 bytes).',
+      );
       return;
     }
     Navigator.of(context).pop(UnlockRequest.keyFile(_keyFileBytes!));
+  }
+
+  void _showValidationError(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 }

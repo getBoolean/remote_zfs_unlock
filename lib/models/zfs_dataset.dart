@@ -6,6 +6,28 @@ part 'zfs_dataset.mapper.dart';
 enum ZfsDatasetType { filesystem, volume, snapshot, bookmark, unknown }
 
 @MappableEnum()
+enum ZfsEncryptionType {
+  @MappableValue('on')
+  on,
+  @MappableValue('off')
+  off,
+  @MappableValue('aes-128-ccm')
+  aes128Ccm,
+  @MappableValue('aes-192-ccm')
+  aes192Ccm,
+  @MappableValue('aes-256-ccm')
+  aes256Ccm,
+  @MappableValue('aes-128-gcm')
+  aes128Gcm,
+  @MappableValue('aes-192-gcm')
+  aes192Gcm,
+  @MappableValue('aes-256-gcm')
+  aes256Gcm,
+  @MappableValue('unknown')
+  unknown,
+}
+
+@MappableEnum()
 enum ZfsDedupType {
   on,
   off,
@@ -38,6 +60,18 @@ enum ZfsCompressionType {
 @MappableEnum()
 enum ZfsKeyFormatType { none, raw, hex, passphrase, unknown }
 
+@MappableEnum()
+enum ZfsKeyStatusType {
+  @MappableValue('none')
+  none,
+  @MappableValue('unavailable')
+  unavailable,
+  @MappableValue('available')
+  available,
+  @MappableValue('unknown')
+  unknown,
+}
+
 @MappableClass()
 class ZfsDataset with ZfsDatasetMappable {
   const ZfsDataset({
@@ -56,8 +90,8 @@ class ZfsDataset with ZfsDatasetMappable {
   });
 
   final String name;
-  final String encryption;
-  final String keyStatus;
+  final ZfsEncryptionType encryption;
+  final ZfsKeyStatusType keyStatus;
   final String mounted;
   final String usedByDataset;
   final String available;
@@ -69,9 +103,21 @@ class ZfsDataset with ZfsDatasetMappable {
   final String mountPoint;
 
   bool get isEncrypted {
-    final value = encryption.toLowerCase().trim();
-    return value.isNotEmpty && value != '-' && value != 'off';
+    switch (encryption) {
+      case ZfsEncryptionType.off:
+        return false;
+      case ZfsEncryptionType.on:
+      case ZfsEncryptionType.aes128Ccm:
+      case ZfsEncryptionType.aes192Ccm:
+      case ZfsEncryptionType.aes256Ccm:
+      case ZfsEncryptionType.aes128Gcm:
+      case ZfsEncryptionType.aes192Gcm:
+      case ZfsEncryptionType.aes256Gcm:
+        return true;
+      case ZfsEncryptionType.unknown:
+        return false;
+    }
   }
 
-  bool get isKeyLoaded => keyStatus.toLowerCase().trim() == 'available';
+  bool get isKeyLoaded => keyStatus == ZfsKeyStatusType.available;
 }

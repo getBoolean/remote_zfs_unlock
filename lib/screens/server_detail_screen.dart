@@ -141,9 +141,28 @@ class ServerDetailScreen extends HookConsumerWidget {
     }
 
     Future<void> unlockDataset(ZfsDataset dataset) async {
+      UnlockMethod? allowedMethod;
+      switch (dataset.keyFormat) {
+        case ZfsKeyFormatType.passphrase:
+          allowedMethod = UnlockMethod.passphrase;
+        case ZfsKeyFormatType.raw:
+        case ZfsKeyFormatType.hex:
+          allowedMethod = UnlockMethod.keyFile;
+        case ZfsKeyFormatType.none:
+        case ZfsKeyFormatType.unknown:
+          allowedMethod = null;
+      }
+      if (allowedMethod == null) {
+        showStatusSnack(
+          'Unable to determine unlock key type for `${dataset.name}`.',
+          isError: true,
+        );
+        return;
+      }
+
       final request = await showDialog<UnlockRequest>(
         context: context,
-        builder: (context) => const UnlockDialog(),
+        builder: (context) => UnlockDialog(allowedMethod: allowedMethod!),
       );
       if (request == null) {
         return;
@@ -279,6 +298,9 @@ class ServerDetailScreen extends HookConsumerWidget {
                       final keyFormatLabel = _formatEnumName(
                         dataset.keyFormat.name,
                       );
+                      final keyStatusLabel = _formatEnumName(
+                        dataset.keyStatus.name,
+                      );
                       final actionButton = !dataset.isEncrypted
                           ? const SizedBox.shrink()
                           : dataset.isKeyLoaded
@@ -355,7 +377,7 @@ class ServerDetailScreen extends HookConsumerWidget {
                                           size: 16,
                                         ),
                                         const SizedBox(width: 4),
-                                        Text('Key: ${dataset.keyStatus}'),
+                                        Text('Key: $keyStatusLabel'),
                                       ],
                                     ),
                                   ],

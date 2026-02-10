@@ -66,6 +66,80 @@ extension ZfsDatasetTypeMapperExtension on ZfsDatasetType {
   }
 }
 
+class ZfsEncryptionTypeMapper extends EnumMapper<ZfsEncryptionType> {
+  ZfsEncryptionTypeMapper._();
+
+  static ZfsEncryptionTypeMapper? _instance;
+  static ZfsEncryptionTypeMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ZfsEncryptionTypeMapper._());
+    }
+    return _instance!;
+  }
+
+  static ZfsEncryptionType fromValue(dynamic value) {
+    ensureInitialized();
+    return MapperContainer.globals.fromValue(value);
+  }
+
+  @override
+  ZfsEncryptionType decode(dynamic value) {
+    switch (value) {
+      case 'on':
+        return ZfsEncryptionType.on;
+      case 'off':
+        return ZfsEncryptionType.off;
+      case 'aes-128-ccm':
+        return ZfsEncryptionType.aes128Ccm;
+      case 'aes-192-ccm':
+        return ZfsEncryptionType.aes192Ccm;
+      case 'aes-256-ccm':
+        return ZfsEncryptionType.aes256Ccm;
+      case 'aes-128-gcm':
+        return ZfsEncryptionType.aes128Gcm;
+      case 'aes-192-gcm':
+        return ZfsEncryptionType.aes192Gcm;
+      case 'aes-256-gcm':
+        return ZfsEncryptionType.aes256Gcm;
+      case 'unknown':
+        return ZfsEncryptionType.unknown;
+      default:
+        throw MapperException.unknownEnumValue(value);
+    }
+  }
+
+  @override
+  dynamic encode(ZfsEncryptionType self) {
+    switch (self) {
+      case ZfsEncryptionType.on:
+        return 'on';
+      case ZfsEncryptionType.off:
+        return 'off';
+      case ZfsEncryptionType.aes128Ccm:
+        return 'aes-128-ccm';
+      case ZfsEncryptionType.aes192Ccm:
+        return 'aes-192-ccm';
+      case ZfsEncryptionType.aes256Ccm:
+        return 'aes-256-ccm';
+      case ZfsEncryptionType.aes128Gcm:
+        return 'aes-128-gcm';
+      case ZfsEncryptionType.aes192Gcm:
+        return 'aes-192-gcm';
+      case ZfsEncryptionType.aes256Gcm:
+        return 'aes-256-gcm';
+      case ZfsEncryptionType.unknown:
+        return 'unknown';
+    }
+  }
+}
+
+extension ZfsEncryptionTypeMapperExtension on ZfsEncryptionType {
+  dynamic toValue() {
+    ZfsEncryptionTypeMapper.ensureInitialized();
+    return MapperContainer.globals.toValue<ZfsEncryptionType>(this);
+  }
+}
+
 class ZfsDedupTypeMapper extends EnumMapper<ZfsDedupType> {
   ZfsDedupTypeMapper._();
 
@@ -288,6 +362,60 @@ extension ZfsKeyFormatTypeMapperExtension on ZfsKeyFormatType {
   }
 }
 
+class ZfsKeyStatusTypeMapper extends EnumMapper<ZfsKeyStatusType> {
+  ZfsKeyStatusTypeMapper._();
+
+  static ZfsKeyStatusTypeMapper? _instance;
+  static ZfsKeyStatusTypeMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ZfsKeyStatusTypeMapper._());
+    }
+    return _instance!;
+  }
+
+  static ZfsKeyStatusType fromValue(dynamic value) {
+    ensureInitialized();
+    return MapperContainer.globals.fromValue(value);
+  }
+
+  @override
+  ZfsKeyStatusType decode(dynamic value) {
+    switch (value) {
+      case 'none':
+        return ZfsKeyStatusType.none;
+      case 'unavailable':
+        return ZfsKeyStatusType.unavailable;
+      case 'available':
+        return ZfsKeyStatusType.available;
+      case 'unknown':
+        return ZfsKeyStatusType.unknown;
+      default:
+        throw MapperException.unknownEnumValue(value);
+    }
+  }
+
+  @override
+  dynamic encode(ZfsKeyStatusType self) {
+    switch (self) {
+      case ZfsKeyStatusType.none:
+        return 'none';
+      case ZfsKeyStatusType.unavailable:
+        return 'unavailable';
+      case ZfsKeyStatusType.available:
+        return 'available';
+      case ZfsKeyStatusType.unknown:
+        return 'unknown';
+    }
+  }
+}
+
+extension ZfsKeyStatusTypeMapperExtension on ZfsKeyStatusType {
+  dynamic toValue() {
+    ZfsKeyStatusTypeMapper.ensureInitialized();
+    return MapperContainer.globals.toValue<ZfsKeyStatusType>(this);
+  }
+}
+
 class ZfsDatasetMapper extends ClassMapperBase<ZfsDataset> {
   ZfsDatasetMapper._();
 
@@ -295,6 +423,8 @@ class ZfsDatasetMapper extends ClassMapperBase<ZfsDataset> {
   static ZfsDatasetMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ZfsDatasetMapper._());
+      ZfsEncryptionTypeMapper.ensureInitialized();
+      ZfsKeyStatusTypeMapper.ensureInitialized();
       ZfsDatasetTypeMapper.ensureInitialized();
       ZfsDedupTypeMapper.ensureInitialized();
       ZfsCompressionTypeMapper.ensureInitialized();
@@ -308,13 +438,13 @@ class ZfsDatasetMapper extends ClassMapperBase<ZfsDataset> {
 
   static String _$name(ZfsDataset v) => v.name;
   static const Field<ZfsDataset, String> _f$name = Field('name', _$name);
-  static String _$encryption(ZfsDataset v) => v.encryption;
-  static const Field<ZfsDataset, String> _f$encryption = Field(
+  static ZfsEncryptionType _$encryption(ZfsDataset v) => v.encryption;
+  static const Field<ZfsDataset, ZfsEncryptionType> _f$encryption = Field(
     'encryption',
     _$encryption,
   );
-  static String _$keyStatus(ZfsDataset v) => v.keyStatus;
-  static const Field<ZfsDataset, String> _f$keyStatus = Field(
+  static ZfsKeyStatusType _$keyStatus(ZfsDataset v) => v.keyStatus;
+  static const Field<ZfsDataset, ZfsKeyStatusType> _f$keyStatus = Field(
     'keyStatus',
     _$keyStatus,
   );
@@ -459,8 +589,8 @@ abstract class ZfsDatasetCopyWith<$R, $In extends ZfsDataset, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   $R call({
     String? name,
-    String? encryption,
-    String? keyStatus,
+    ZfsEncryptionType? encryption,
+    ZfsKeyStatusType? keyStatus,
     String? mounted,
     String? usedByDataset,
     String? available,
@@ -485,8 +615,8 @@ class _ZfsDatasetCopyWithImpl<$R, $Out>
   @override
   $R call({
     String? name,
-    String? encryption,
-    String? keyStatus,
+    ZfsEncryptionType? encryption,
+    ZfsKeyStatusType? keyStatus,
     String? mounted,
     String? usedByDataset,
     String? available,
