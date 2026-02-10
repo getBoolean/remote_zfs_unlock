@@ -173,8 +173,9 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
   );
 
   test(
-    'createDataset with keyfile uploads temp file and uses keylocation file',
+    'createDataset with keyfile streams key over SSH prompt',
     () async {
+      final keyBytes = Uint8List.fromList(List<int>.filled(32, 1));
       await zfsService.createDataset(
         profile: profile,
         secrets: secrets,
@@ -182,26 +183,22 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
           parentDataset: 'tank/home',
           datasetName: 'secrets-keyfile',
           encrypted: true,
-          keyFileBytes: Uint8List.fromList(List<int>.filled(32, 1)),
+          keyFileBytes: keyBytes,
         ),
       );
 
-      expect(sshService.uploadCalls, hasLength(1));
       expect(sshService.commandWithInputCalls, hasLength(1));
       final call = sshService.commandWithInputCalls.single;
       expect(
         call.command,
         contains(
-          "zfs create -o encryption=on -o keyformat=raw -o keylocation='file:///tmp/remote_zfs_unlock_",
+          "zfs create -o encryption=on -o keyformat=raw -o keylocation=prompt ",
         ),
       );
       expect(call.command, contains("'tank/home/secrets-keyfile'"));
-      expect(call.stdinData, isEmpty);
-      expect(sshService.commandCalls, hasLength(1));
-      expect(
-        sshService.commandCalls.single,
-        startsWith("rm -f '/tmp/remote_zfs_unlock_"),
-      );
+      expect(call.stdinData, keyBytes);
+      expect(sshService.uploadCalls, isEmpty);
+      expect(sshService.commandCalls, isEmpty);
     },
   );
 

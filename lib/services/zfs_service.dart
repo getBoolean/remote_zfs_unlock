@@ -280,32 +280,15 @@ class ZfsService {
         throw ArgumentError('Raw keyfile must be exactly 32 bytes (256 bit).');
       }
       final encryption = request.keyFileEncryptionType.zfsValue;
-      final tempPath =
-          '/tmp/remote_zfs_unlock_${Random().nextInt(1 << 32)}.key';
-      await _sshService.uploadBytes(
+      final result = await _sshService.runCommandWithInput(
         profile: profile,
         secrets: secrets,
-        bytes: Uint8List.fromList(keyFileBytes),
-        remotePath: tempPath,
+        command:
+            'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=prompt ${_shellQuote(fullDatasetName)}',
+        stdinData: Uint8List.fromList(keyFileBytes),
       );
-      try {
-        final locator = 'file://$tempPath';
-        final result = await _sshService.runCommandWithInput(
-          profile: profile,
-          secrets: secrets,
-          command:
-              'zfs create -o encryption=$encryption -o keyformat=raw -o keylocation=${_shellQuote(locator)} ${_shellQuote(fullDatasetName)}',
-          stdinData: const [],
-        );
-        if (result.exitCode != 0) {
-          throw StateError(_joinStdio(result.stdout, result.stderr));
-        }
-      } finally {
-        await _sshService.runCommand(
-          profile: profile,
-          secrets: secrets,
-          command: 'rm -f ${_shellQuote(tempPath)}',
-        );
+      if (result.exitCode != 0) {
+        throw StateError(_joinStdio(result.stdout, result.stderr));
       }
       return;
     }
