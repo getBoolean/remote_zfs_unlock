@@ -30,6 +30,11 @@ dev_dependencies:
   dart_mappable_builder: ^4.6.4
   mockito: ^5.6.3
   riverpod_generator: ^4.0.3
+  msix: ^3.16.13
 
 flutter:
   uses-material-design: true
+
+msix_config:
+  display_name: Remote ZFS Unlock
+  install_certificate: false

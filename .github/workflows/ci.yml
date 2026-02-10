@@ -1,6 +1,12 @@
 name: CI
 on:
   workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run tests"
+        default: true
+        required: false
+        type: boolean
   push:
     branches:
       - "**"
@@ -14,9 +20,66 @@ env:
   FLUTTER_VERSION: "3.41.0-0.3.pre"
   BRANCH_NAME: $(echo -n ${{ github.head_ref || github.ref_name }} | tr "/" "-")
 
+# Needed to deploy to GitHub Pages
+permissions:
+  contents: write
+
 jobs:
+  flutter_test:
+    name: Flutter Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Variables
+        run: |
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
+
+      - name: Print Variables
+        run: |
+          echo "Flutter Channel: ${{ env.FLUTTER_CHANNEL }}"
+          echo "Flutter Version: ${{ env.FLUTTER_VERSION }}"
+          echo "Current Branch: ${{ env.BRANCH_NAME }}"
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+
+      - name: Check Flutter Version
+        run: flutter --version
+
+      - name: Get Packages
+        if: github.event.inputs.run_tests == 'true' || github.event.inputs.run_tests == null
+        run: flutter pub get
+
+      - name: Generate Code
+        if: github.event.inputs.run_tests == 'true' || github.event.inputs.run_tests == null
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Run Flutter Tests
+        if: github.event.inputs.run_tests == 'true' || github.event.inputs.run_tests == null
+        run: flutter test
+
+      - name: Annotate PR
+        if: github.event.inputs.run_tests == 'true' || github.event.inputs.run_tests == null
+        uses: invertase/github-action-dart-analyzer@v3
+        with:
+          fatal-infos: false
+          fatal-warnings: false
+          annotate: true
+          annotate-only: true
+          # custom-lint: true
+
   build_ios_without_signing:
     name: Build Flutter for iOS (Without Signing)
+    needs: [flutter_test]
     runs-on: macos-15
     steps:
       - name: Checkout Repository
@@ -43,7 +106,7 @@ jobs:
         run: flutter pub get
 
       - name: Generate Code
-        run: dart run build_runner build --delete-conflicting-outputs
+        run: flutter pub run build_runner build --delete-conflicting-outputs
 
       # Zip into IPA from here:
       # https://gist.github.com/devhammed/617d920b7ee886591a46c22633ab0093
@@ -75,6 +138,7 @@ jobs:
 
   build_android:
     name: Build Flutter for Android
+    needs: [flutter_test]
     runs-on: macos-15
     steps:
       - name: Checkout Repository
@@ -112,7 +176,7 @@ jobs:
         run: flutter pub get
 
       - name: Generate Code
-        run: dart run build_runner build --delete-conflicting-outputs
+        run: flutter pub run build_runner build --delete-conflicting-outputs
 
       # - name: Build Android Split APK
       #   run: |
@@ -179,6 +243,227 @@ jobs:
           allowUpdates: true
           omitBodyDuringUpdate: true
 
+  build_windows:
+    name: Build Flutter for Windows x64
+    needs: [flutter_test]
+    runs-on: windows-latest
+    steps:
+      - name: Enable Git Long Paths
+        run: git config --system core.longpaths true
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Variables
+        run: |
+          "BRANCH_NAME=${{ env.BRANCH_NAME }}" | Out-File -Append -LiteralPath $Env:GITHUB_ENV
+          Write-Output "BRANCH_NAME=${{ env.BRANCH_NAME }}"
+        shell: pwsh
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+          architecture: x64
+
+      - name: Check Flutter Version
+        run: flutter --version
+
+      - name: Get Packages
+        run: flutter pub get
+
+      - name: Generate Code
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Build MSIX
+        run: |
+          dart run msix:create --build-windows false
+          cd build\windows\x64\runner\Release
+          mv *.msix ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-windows.msix
+        shell: pwsh
+
+      - name: Upload MSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-windows
+          path: build/windows/x64/runner/Release/*.msix
+
+      - name: Release MSIX
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: build/windows/x64/runner/Release/${{ env.APP_NAME }}-*.msix
+          allowUpdates: true
+          omitBodyDuringUpdate: true
+
+  build_linux:
+    name: Build Flutter for Linux
+    needs: [flutter_test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Variables
+        run: |
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+          architecture: x64
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y webkit2gtk-4.1 clang cmake ninja-build pkg-config libgtk-3-dev
+          sudo apt-get install -y libfuse2 squashfs-tools snapcraft flatpak flatpak-builder
+
+      - name: Check Flutter Version
+        run: flutter --version
+
+      - name: Get Packages
+        run: flutter pub get
+
+      - name: Generate Code
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Build Linux
+        run: flutter build linux --release
+
+      - name: Build AppImage
+        run: |
+          curl -JOL https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          mv appimagetool-x86_64.AppImage appimagetool
+
+          mv build/linux/x64/release/bundle/{${{ env.APP_NAME }},AppRun}
+          cp linux/appimage/* build/linux/x64/release/bundle/
+          ./appimagetool build/linux/x64/release/bundle/
+          mv *.AppImage build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.AppImage
+
+      - name: Build Snap
+        run: |
+          if [ -f snap/snapcraft.yaml ]; then
+            snapcraft --destructive-mode
+            mv ./*.snap build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap
+          else
+            echo "No snap/snapcraft.yaml found - skipping Snap package build."
+          fi
+
+      - name: Build Flatpak
+        run: |
+          if ls flatpak/*.yaml flatpak/*.json >/dev/null 2>&1; then
+            MANIFEST=$(ls flatpak/*.yaml flatpak/*.json | head -n1)
+            flatpak-builder --force-clean --repo=flatpak-repo flatpak-build "$MANIFEST"
+            flatpak build-bundle flatpak-repo build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.flatpak ${{ env.APP_NAME }}
+          else
+            echo "No flatpak manifest found in flatpak/ - skipping Flatpak package build."
+          fi
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-appimage
+          path: build/${{ env.APP_NAME }}-*.AppImage
+          if-no-files-found: error
+
+      - name: Upload Snap
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-snap
+          path: build/${{ env.APP_NAME }}-*.snap
+          if-no-files-found: ignore
+
+      - name: Upload Flatpak
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-flatpak
+          path: build/${{ env.APP_NAME }}-*.flatpak
+          if-no-files-found: ignore
+
+      - name: Release Linux Artifacts
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: build/${{ env.APP_NAME }}-*.AppImage,build/${{ env.APP_NAME }}-*.snap,build/${{ env.APP_NAME }}-*.flatpak
+          allowUpdates: true
+          omitBodyDuringUpdate: true
+
+  build_macos:
+    name: Build Flutter for macOS
+    needs: [flutter_test]
+    runs-on: macos-15
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set Variables
+        run: |
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+          architecture: x64
+
+      - name: Check Flutter Version
+        run: flutter --version
+
+      - name: Get Packages
+        run: flutter pub get
+
+      - name: Generate Code
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Build macOS
+        run: flutter build macos --release
+
+      - name: Build DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-macos" \
+            --window-pos 200 120 \
+            --window-size 800 450 \
+            --icon-size 100 \
+            --app-drop-link 600 185 \
+            "${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-macos.dmg" \
+            "build/macos/Build/Products/Release/${{ env.APP_NAME }}.app"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-macos-dmg
+          path: "/Users/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/*.dmg"
+
+      - name: Release DMG
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: /Users/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-macos.dmg
+          allowUpdates: true
+          omitBodyDuringUpdate: true
+
   # build_msix:
   #   name: Build Flutter (Windows MSIX)
   #   runs-on: windows-latest
@@ -207,7 +492,7 @@ jobs:
   #         channel: "stable"
   #     - run: flutter clean
   #     - run: flutter pub get
-  #     - run: dart run build_runner build --delete-conflicting-outputs
+  #     - run: flutter pub run build_runner build --delete-conflicting-outputs
   #     - name: Build Windows
   #       run: flutter build windows --release
   #     - name: Package as Windows MSIX
