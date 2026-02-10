@@ -3,11 +3,56 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 
 enum _CreateEncryptionMethod { passphrase, keyFile }
 
 enum _KeyFileInputMethod { upload, rawText }
+
+class _Utf8ByteLengthLimitingTextInputFormatter extends TextInputFormatter {
+  const _Utf8ByteLengthLimitingTextInputFormatter(this.maxBytes);
+
+  final int maxBytes;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (utf8.encode(newValue.text).length <= maxBytes) {
+      return newValue;
+    }
+
+    final truncatedText = _truncateToMaxUtf8Bytes(newValue.text);
+    final selectionOffset = newValue.selection.extentOffset.clamp(
+      0,
+      truncatedText.length,
+    );
+
+    return TextEditingValue(
+      text: truncatedText,
+      selection: TextSelection.collapsed(offset: selectionOffset),
+    );
+  }
+
+  String _truncateToMaxUtf8Bytes(String text) {
+    final buffer = StringBuffer();
+    var usedBytes = 0;
+
+    for (final rune in text.runes) {
+      final char = String.fromCharCode(rune);
+      final runeBytes = utf8.encode(char).length;
+      if (usedBytes + runeBytes > maxBytes) {
+        break;
+      }
+      buffer.write(char);
+      usedBytes += runeBytes;
+    }
+
+    return buffer.toString();
+  }
+}
 
 class CreateDatasetDialog extends StatefulWidget {
   const CreateDatasetDialog({required this.parentDatasets, super.key});
@@ -20,6 +65,7 @@ class CreateDatasetDialog extends StatefulWidget {
 
 class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
   final _formKey = GlobalKey<FormState>();
+  final _keyFileFormFieldKey = GlobalKey<FormFieldState<Uint8List>>();
   final _datasetNameController = TextEditingController();
   final _passphraseController = TextEditingController();
   final _confirmPassphraseController = TextEditingController();
@@ -244,6 +290,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   ),
                   const SizedBox(height: 8),
                   FormField<Uint8List>(
+                    key: _keyFileFormFieldKey,
                     validator: (_) {
                       if (!_encrypted ||
                           _encryptionMethod !=
@@ -295,6 +342,12 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                           else
                             TextFormField(
                               controller: _rawKeyTextController,
+                              onChanged: (_) {
+                                _keyFileFormFieldKey.currentState?.validate();
+                              },
+                              inputFormatters: const [
+                                _Utf8ByteLengthLimitingTextInputFormatter(32),
+                              ],
                               decoration: const InputDecoration(
                                 labelText: 'Raw key text',
                                 hintText: 'Enter raw key contents',
@@ -389,5 +442,6 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
       _keyFileBytes = file.bytes!;
       _keyFileName = file.name;
     });
+    _keyFileFormFieldKey.currentState?.validate();
   }
 }
