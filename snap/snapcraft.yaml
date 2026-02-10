@@ -1,6 +1,6 @@
 name: remote-zfs-unlock
 base: core22
-version: "0.1.0"
+version: "1.0.0"
 summary: Remote ZFS unlock utility
 description: |
   A Flutter desktop app for remotely unlocking encrypted ZFS datasets.
