@@ -10,7 +10,7 @@ part of 'app_providers.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(serverProfilesBox)
-const serverProfilesBoxProvider = ServerProfilesBoxProvider._();
+final serverProfilesBoxProvider = ServerProfilesBoxProvider._();
 
 final class ServerProfilesBoxProvider
     extends
@@ -20,7 +20,7 @@ final class ServerProfilesBoxProvider
           Box<Map<dynamic, dynamic>>
         >
     with $Provider<Box<Map<dynamic, dynamic>>> {
-  const ServerProfilesBoxProvider._()
+  ServerProfilesBoxProvider._()
     : super(
         from: null,
         argument: null,
@@ -57,7 +57,7 @@ final class ServerProfilesBoxProvider
 String _$serverProfilesBoxHash() => r'ef02642248991afde7e8fb1a897b6f926c47bb53';
 
 @ProviderFor(flutterSecureStorage)
-const flutterSecureStorageProvider = FlutterSecureStorageProvider._();
+final flutterSecureStorageProvider = FlutterSecureStorageProvider._();
 
 final class FlutterSecureStorageProvider
     extends
@@ -67,7 +67,7 @@ final class FlutterSecureStorageProvider
           FlutterSecureStorage
         >
     with $Provider<FlutterSecureStorage> {
-  const FlutterSecureStorageProvider._()
+  FlutterSecureStorageProvider._()
     : super(
         from: null,
         argument: null,
@@ -105,7 +105,7 @@ String _$flutterSecureStorageHash() =>
     r'f97cebdb66b3b308d6e0361de8bf70dc62753579';
 
 @ProviderFor(secureStorageService)
-const secureStorageServiceProvider = SecureStorageServiceProvider._();
+final secureStorageServiceProvider = SecureStorageServiceProvider._();
 
 final class SecureStorageServiceProvider
     extends
@@ -115,7 +115,7 @@ final class SecureStorageServiceProvider
           SecureStorageService
         >
     with $Provider<SecureStorageService> {
-  const SecureStorageServiceProvider._()
+  SecureStorageServiceProvider._()
     : super(
         from: null,
         argument: null,
@@ -153,7 +153,7 @@ String _$secureStorageServiceHash() =>
     r'e6048c625f6ebd04addd3953abbed782094bd510';
 
 @ProviderFor(serverRepository)
-const serverRepositoryProvider = ServerRepositoryProvider._();
+final serverRepositoryProvider = ServerRepositoryProvider._();
 
 final class ServerRepositoryProvider
     extends
@@ -163,7 +163,7 @@ final class ServerRepositoryProvider
           ServerRepository
         >
     with $Provider<ServerRepository> {
-  const ServerRepositoryProvider._()
+  ServerRepositoryProvider._()
     : super(
         from: null,
         argument: null,
@@ -199,12 +199,12 @@ final class ServerRepositoryProvider
 String _$serverRepositoryHash() => r'0d75598d848de9369473a534e890e551784de1f1';
 
 @ProviderFor(sshService)
-const sshServiceProvider = SshServiceProvider._();
+final sshServiceProvider = SshServiceProvider._();
 
 final class SshServiceProvider
     extends $FunctionalProvider<SshService, SshService, SshService>
     with $Provider<SshService> {
-  const SshServiceProvider._()
+  SshServiceProvider._()
     : super(
         from: null,
         argument: null,
@@ -240,12 +240,12 @@ final class SshServiceProvider
 String _$sshServiceHash() => r'dbbfbdce2b76c7d000bec8b7a4b8d885b80c1cc8';
 
 @ProviderFor(zfsService)
-const zfsServiceProvider = ZfsServiceProvider._();
+final zfsServiceProvider = ZfsServiceProvider._();
 
 final class ZfsServiceProvider
     extends $FunctionalProvider<ZfsService, ZfsService, ZfsService>
     with $Provider<ZfsService> {
-  const ZfsServiceProvider._()
+  ZfsServiceProvider._()
     : super(
         from: null,
         argument: null,
@@ -281,11 +281,11 @@ final class ZfsServiceProvider
 String _$zfsServiceHash() => r'1d7c2dcb919a47079d1a0cc6c6a325a1a01ea131';
 
 @ProviderFor(ServerList)
-const serverListProvider = ServerListProvider._();
+final serverListProvider = ServerListProvider._();
 
 final class ServerListProvider
     extends $AsyncNotifierProvider<ServerList, List<ServerProfile>> {
-  const ServerListProvider._()
+  ServerListProvider._()
     : super(
         from: null,
         argument: null,
@@ -311,7 +311,6 @@ abstract class _$ServerList extends $AsyncNotifier<List<ServerProfile>> {
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
     final ref =
         this.ref as $Ref<AsyncValue<List<ServerProfile>>, List<ServerProfile>>;
     final element =
@@ -322,6 +321,6 @@ abstract class _$ServerList extends $AsyncNotifier<List<ServerProfile>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    element.handleCreate(ref, build);
   }
 }
