@@ -1,0 +1,22 @@
+app-id: io.github.remote_zfs_unlock
+runtime: org.freedesktop.Platform
+runtime-version: "23.08"
+sdk: org.freedesktop.Sdk
+command: remote_zfs_unlock
+finish-args:
+  - --share=network
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --filesystem=home
+
+modules:
+  - name: remote-zfs-unlock
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/bin
+      - cp -a . /app/bin/
+      - chmod +x /app/bin/remote_zfs_unlock
+    sources:
+      - type: dir
+        path: build/linux/x64/release/bundle
