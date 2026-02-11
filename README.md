@@ -1,24 +1,23 @@
 # Remote ZFS Unlock
 
-Flutter app for connecting to remote servers over SSH and managing encrypted ZFS datasets.
+An app for managing ZFS datasets on remote servers over SSH.
 
 ## Features
 
-- Save multiple server profiles (host/port/user/auth mode).
-- Authenticate with either password or private key (PEM).
-- Keep secrets in platform secure storage.
-- List datasets from `zfs list -H -o name,encryption,keystatus,mounted`.
+- List datasets
 - Unlock encrypted datasets using:
-  - passphrase (`zfs load-key <dataset>`, passphrase over stdin)
-  - uploaded keyfile (`zfs load-key -L file://... <dataset>`)
-- Lock encrypted datasets by unloading key:
-  - `zfs unload-key <dataset>`
+  - passphrase
+  - uploaded keyfile
+  - path to keyfile
+- Lock encrypted datasets by unloading key
+- Create datasets
+  - encrypt by passphrase or uploaded keyfile
 
 ## Tech stack
 
-- SSH/SFTP: [`dartssh2`](https://pub.dev/packages/dartssh2)
+- SSH: [`dartssh2`](https://pub.dev/packages/dartssh2)
 - State + hooks: [`hooks_riverpod`](https://pub.dev/packages/hooks_riverpod), [`flutter_hooks`](https://pub.dev/packages/flutter_hooks)
-- Local metadata DB: [`hive_ce`](https://pub.dev/packages/hive_ce)
+- Local DB: [`hive_ce`](https://pub.dev/packages/hive_ce)
 - Secret storage: [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage)
 
 ## Server requirements
@@ -28,22 +27,27 @@ Flutter app for connecting to remote servers over SSH and managing encrypted ZFS
   - `zfs list`
   - `zfs load-key`
   - `zfs unload-key`
-  - `rm` for remote temp keyfile cleanup
+  - `ls`
 - If `sudo` is required for `zfs`, configure server-side policy accordingly (for example a restricted `sudoers` rule).
+
+## Demo
+
+A live demo is setup at https://getboolean.github.io/remote_zfs_unlock/main but SSH is currently not functioning on Web
 
 ## Usage
 
 1. Add a server profile and choose auth mode:
    - password
    - private key (paste PEM or upload a keyfile)
-2. Open the server and refresh datasets.
+2. Open the server.
 3. For encrypted datasets:
-   - use **Unlock** to load keys (passphrase or uploaded keyfile)
-   - use **Lock** to unload keys
+   - use **Unlock** to mount and load keys (passphrase or uploaded keyfile)
+   - use **Lock** to unmount and unload keys
 
 ## Security notes
 
 - Non-secret profile metadata is stored in Hive.
-- Password/private key/passphrase are stored in platform secure storage.
+- Server Password/PEM is stored in platform secure storage.
+- Dataset passphrase/keyfiles are not stored.
 - The app avoids printing secrets in UI messages.
-- Uploaded ZFS keyfiles are stored remotely in `/tmp` during unlock and then removed.
+- Uploaded ZFS keyfiles are sent over the SSH shell
