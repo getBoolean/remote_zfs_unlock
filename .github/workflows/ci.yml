@@ -565,9 +565,11 @@ jobs:
           if-no-files-found: ignore
 
       - name: Activate FastForge
+        run: dart pub global activate fastforge
+
+      - name: Install FastForge Dependencies
         run: |
-          dart pub global activate fastforge
-          apt install rpm patchelf
+          sudo apt install rpm patchelf
 
       - name: Build Deb
         run: |
@@ -579,7 +581,7 @@ jobs:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-deb
           path: build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.deb
           if-no-files-found: ignore
-      
+
       - name: Build RPM
         run: |
           fastforge package --platform linux --targets rpm --path build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.rpm
