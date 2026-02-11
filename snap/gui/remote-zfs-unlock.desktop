@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Remote ZFS Unlock
+Comment=Unlock encrypted ZFS datasets on remote servers
+Exec=remote-zfs-unlock
+Icon=${SNAP}/meta/gui/remote-zfs-unlock.png
+Type=Application
+Terminal=false
+Categories=Utility;

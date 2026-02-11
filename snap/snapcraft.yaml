@@ -1,24 +1,33 @@
 name: remote-zfs-unlock
-base: core22
 version: "1.0.0"
 summary: Remote ZFS unlock utility
-description: |
-  A Flutter desktop app for remotely unlocking encrypted ZFS datasets.
-grade: devel
-confinement: devmode
+description: A utility app for remotely unlocking encrypted ZFS datasets.
+
+confinement: strict
+base: core24
+grade: stable
+
+slots:
+  dbus-remote-zfs-unlock:
+    interface: dbus
+    bus: session
+    name: dev.getboolean.remote_zfs_unlock
 
 apps:
   remote-zfs-unlock:
-    command: bin/remote_zfs_unlock
+    command: remote_zfs_unlock
     extensions: [gnome]
     plugs:
       - network
       - network-bind
       - home
+    slots:
+      - dbus-remote-zfs-unlock
 
 parts:
   remote-zfs-unlock:
-    plugin: dump
-    source: build/linux/x64/release/bundle
-    organize:
-      "*": bin/
+    source: .
+    plugin: flutter
+    flutter-target: lib/main.dart
+    override-build: |
+      cp -r build/linux/*/release/bundle/* $CRAFT_PART_INSTALL/

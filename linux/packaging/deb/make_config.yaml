@@ -1,0 +1,26 @@
+display_name: Remote ZFS Unlock
+package_name: remote-zfs-unlock
+maintainer:
+  name: GetBoolean
+priority: optional
+section: x11
+installed_size: 6604
+essential: false
+icon: linux/packaging/gui/logo.png
+
+postinstall_scripts:
+  - echo "Installed Remote ZFS Unlock"
+postuninstall_scripts:
+  - echo "Uninstalled Remote ZFS Unlock"
+
+keywords:
+  - ZFS
+  - Unlock
+  - Remote
+  - SSH
+  - Utility
+
+startup_notify: true
+# You can also specify [metainfo](https://freedesktop.org/software/appstream/docs/chap-Quickstart.html) file
+# which contains metadata of the app.
+# metainfo: linux/packaging/myappid.appdata.xml

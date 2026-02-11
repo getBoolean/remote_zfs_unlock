@@ -495,8 +495,18 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y webkit2gtk-4.1 clang cmake ninja-build pkg-config libgtk-3-dev mpv libmpv-dev dpkg-dev
           sudo apt-get install -y build-essential libsecret-1-dev libsecret-1-0 libjsoncpp-dev libsecret-tools libusb-dev
-          sudo apt-get install -y libfuse2 libsqlite3-0 libsqlite3-dev squashfs-tools flatpak flatpak-builder
-          sudo snap install snapcraft --classic
+          sudo apt-get install -y libfuse2
+
+      - name: Install Snap/LXD
+        # Skipping this step as Flutter Snap is broken https://github.com/canonical/flutter-snap/issues/109
+        if: false
+        run: |
+          sudo groupadd --force --system lxd
+          sudo usermod --append --groups lxd runner
+          sudo snap install lxd
+          sudo lxd init --auto
+          sudo iptables -P FORWARD ACCEPT
+          sudo snap install --channel stable --classic snapcraft
 
       - name: Check Flutter Version
         run: flutter --version
@@ -521,32 +531,6 @@ jobs:
           ./appimagetool build/linux/x64/release/bundle/
           mv *.AppImage build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.AppImage
 
-      - name: Build Snap
-        run: |
-          if [ -f snap/snapcraft.yaml ]; then
-            if snapcraft pack --destructive-mode; then
-              if compgen -G "./*.snap" >/dev/null; then
-                mv ./*.snap build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap
-              else
-                echo "::warning::Snap build reported success but produced no .snap artifact."
-              fi
-            else
-              echo "::warning::Snap build failed. Skipping Snap artifact for this run."
-            fi
-          else
-            echo "No snap/snapcraft.yaml found - skipping Snap package build."
-          fi
-
-      - name: Build Flatpak
-        run: |
-          if ls flatpak/*.yaml flatpak/*.json >/dev/null 2>&1; then
-            MANIFEST=$(ls flatpak/*.yaml flatpak/*.json | head -n1)
-            flatpak-builder --force-clean --repo=flatpak-repo flatpak-build "$MANIFEST"
-            flatpak build-bundle flatpak-repo build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.flatpak ${{ env.APP_NAME }}
-          else
-            echo "No flatpak manifest found in flatpak/ - skipping Flatpak package build."
-          fi
-
       - name: Upload AppImage
         uses: actions/upload-artifact@v6
         with:
@@ -554,25 +538,68 @@ jobs:
           path: build/${{ env.APP_NAME }}-*.AppImage
           if-no-files-found: error
 
+      - name: Build Snap
+        # Skipping this step as Flutter Snap is broken https://github.com/canonical/flutter-snap/issues/109
+        if: false
+        run: |
+          if [ -f snap/snapcraft.yaml ]; then
+            if sudo -u runner -E snapcraft pack --destructive-mode; then
+              if compgen -G "./*.snap" >/dev/null; then
+                mv ./*.snap build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap
+            else
+              echo "::warning::Snap build reported success but produced no .snap artifact."
+            fi
+            else
+              echo "::warning::Snap build failed. Skipping Snap artifact for this run."
+            fi
+          else
+            echo "No snap/snapcraft.yaml found - skipping Snap package build."
+          fi
       - name: Upload Snap
+        # Skipping this step as Flutter Snap is broken https://github.com/canonical/flutter-snap/issues/109
+        if: false
         uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-snap
           path: build/${{ env.APP_NAME }}-*.snap
           if-no-files-found: ignore
 
-      - name: Upload Flatpak
+      - name: Activate FastForge
+        run: dart pub global activate fastforge
+
+      - name: Install FastForge Dependencies
+        run: |
+          sudo apt install rpm patchelf
+
+      - name: Build Deb
+        run: |
+          fastforge package --platform linux --targets deb
+          mv dist/*/*.deb build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.deb
+
+      - name: Upload Deb
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-flatpak
-          path: build/${{ env.APP_NAME }}-*.flatpak
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-deb
+          path: build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.deb
+          if-no-files-found: ignore
+
+      - name: Build RPM
+        run: |
+          fastforge package --platform linux --targets rpm
+          mv dist/*/*.rpm build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.rpm
+
+      - name: Upload RPM
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-rpm
+          path: build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.rpm
           if-no-files-found: ignore
 
       - name: Release Linux Artifacts
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: build/${{ env.APP_NAME }}-*.AppImage,build/${{ env.APP_NAME }}-*.snap,build/${{ env.APP_NAME }}-*.flatpak
+          artifacts: build/${{ env.APP_NAME }}-*.AppImage,build/${{ env.APP_NAME }}-*.snap,build/${{ env.APP_NAME }}-*.deb,build/${{ env.APP_NAME }}-*.rpm
           allowUpdates: true
           omitBodyDuringUpdate: true
 
