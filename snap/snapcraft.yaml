@@ -1,5 +1,4 @@
 name: remote-zfs-unlock
-base: core22
 version: "1.0.0"
 summary: Remote ZFS unlock utility
 description: |
