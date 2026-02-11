@@ -525,7 +525,7 @@ jobs:
         name: Build Snap
         id: snapcraft 
         
-      - name: Build Snap
+      - name: Rename Built Snap
         run: |
           if [ -f snap/snapcraft.yaml ]; then
             if compgen -G "${{ steps.snapcraft.outputs.snap }}" >/dev/null; then
