@@ -521,17 +521,17 @@ jobs:
           ./appimagetool build/linux/x64/release/bundle/
           mv *.AppImage build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.AppImage
 
+      - uses: snapcore/action-build@v1
+        name: Build Snap
+        id: snapcraft 
+        
       - name: Build Snap
         run: |
           if [ -f snap/snapcraft.yaml ]; then
-            if snapcraft pack --destructive-mode; then
-              if compgen -G "./*.snap" >/dev/null; then
-                mv ./*.snap build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap
-              else
-                echo "::warning::Snap build reported success but produced no .snap artifact."
-              fi
+            if compgen -G "${{ steps.snapcraft.outputs.snap }}" >/dev/null; then
+              mv "${{ steps.snapcraft.outputs.snap }}" "build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap"
             else
-              echo "::warning::Snap build failed. Skipping Snap artifact for this run."
+              echo "::warning::Snap build reported success but produced no .snap artifact."
             fi
           else
             echo "No snap/snapcraft.yaml found - skipping Snap package build."
