@@ -4,8 +4,8 @@ summary: Remote ZFS unlock utility
 description: A utility app for remotely unlocking encrypted ZFS datasets.
 
 architectures:
-  - build-on: [ amd64 ]
-  - build-on: [ arm64 ]
+  - build-on: [amd64]
+  - build-on: [arm64]
 
 confinement: strict
 base: core22
@@ -15,7 +15,7 @@ slots:
   dbus-remote-zfs-unlock:
     interface: dbus
     bus: session
-    name: app.remote_zfs_unlock
+    name: dev.getboolean.remote_zfs_unlock
 
 apps:
   remote-zfs-unlock:
