@@ -521,6 +521,13 @@ jobs:
           ./appimagetool build/linux/x64/release/bundle/
           mv *.AppImage build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.AppImage
 
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-appimage
+          path: build/${{ env.APP_NAME }}-*.AppImage
+          if-no-files-found: error
+
       - uses: snapcore/action-build@v1
         name: Build Snap
         id: snapcraft 
@@ -537,6 +544,13 @@ jobs:
             echo "No snap/snapcraft.yaml found - skipping Snap package build."
           fi
 
+      - name: Upload Snap
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-snap
+          path: build/${{ env.APP_NAME }}-*.snap
+          if-no-files-found: ignore
+
       - name: Build Flatpak
         run: |
           if ls flatpak/*.yaml flatpak/*.json >/dev/null 2>&1; then
@@ -546,20 +560,6 @@ jobs:
           else
             echo "No flatpak manifest found in flatpak/ - skipping Flatpak package build."
           fi
-
-      - name: Upload AppImage
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-appimage
-          path: build/${{ env.APP_NAME }}-*.AppImage
-          if-no-files-found: error
-
-      - name: Upload Snap
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-snap
-          path: build/${{ env.APP_NAME }}-*.snap
-          if-no-files-found: ignore
 
       - name: Upload Flatpak
         uses: actions/upload-artifact@v6
