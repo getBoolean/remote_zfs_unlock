@@ -563,11 +563,39 @@ jobs:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-snap
           path: build/${{ env.APP_NAME }}-*.snap
           if-no-files-found: ignore
+
+      - name: Activate FastForge
+        run: |
+          dart pub global activate fastforge
+          apt install rpm patchelf
+
+      - name: Build Deb
+        run: |
+          fastforge package --platform linux --targets deb --path build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.deb
+
+      - name: Upload Deb
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-deb
+          path: build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.deb
+          if-no-files-found: ignore
+      
+      - name: Build RPM
+        run: |
+          fastforge package --platform linux --targets rpm --path build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.rpm
+
+      - name: Upload RPM
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-rpm
+          path: build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.rpm
+          if-no-files-found: ignore
+
       - name: Release Linux Artifacts
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: build/${{ env.APP_NAME }}-*.AppImage,build/${{ env.APP_NAME }}-*.snap
+          artifacts: build/${{ env.APP_NAME }}-*.AppImage,build/${{ env.APP_NAME }}-*.snap,build/${{ env.APP_NAME }}-*.deb,build/${{ env.APP_NAME }}-*.rpm
           allowUpdates: true
           omitBodyDuringUpdate: true
 
