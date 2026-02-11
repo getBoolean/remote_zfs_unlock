@@ -495,9 +495,8 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y webkit2gtk-4.1 clang cmake ninja-build pkg-config libgtk-3-dev mpv libmpv-dev dpkg-dev
           sudo apt-get install -y build-essential libsecret-1-dev libsecret-1-0 libjsoncpp-dev libsecret-tools libusb-dev
-          sudo apt-get install -y libfuse2 libsqlite3-0 libsqlite3-dev squashfs-tools flatpak flatpak-builder
+          sudo apt-get install -y libfuse2
 
-          
       - name: Install Snap/LXD
         # Skipping this step as Flutter Snap is broken https://github.com/canonical/flutter-snap/issues/109
         if: false
@@ -538,7 +537,7 @@ jobs:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-appimage
           path: build/${{ env.APP_NAME }}-*.AppImage
           if-no-files-found: error
-        
+
       - name: Build Snap
         # Skipping this step as Flutter Snap is broken https://github.com/canonical/flutter-snap/issues/109
         if: false
@@ -564,29 +563,90 @@ jobs:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-snap
           path: build/${{ env.APP_NAME }}-*.snap
           if-no-files-found: ignore
+      - name: Release Linux Artifacts
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: build/${{ env.APP_NAME }}-*.AppImage,build/${{ env.APP_NAME }}-*.snap
+          allowUpdates: true
+          omitBodyDuringUpdate: true
+
+  build_linux_flatpak:
+    name: Build Flutter Flatpak for Linux
+    needs: [flutter_test]
+    strategy:
+      matrix:
+        variant:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.variant.runner }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
+      options: --privileged
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set Variables
+        run: |
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${{ env.BRANCH_NAME }}"
+
+      - name: Install and set Flutter version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{env.FLUTTER_CHANNEL}}
+          flutter-version: ${{env.FLUTTER_VERSION}}
+          cache: true
+          cache-key: "flutter-:os:-:channel:-:version:-:arch:-:hash:"
+          cache-path: "${{ runner.tool_cache }}/flutter/:channel:-:version:-:arch:"
+          architecture: x64
+
+      - name: Check Flutter Version
+        run: flutter --version
+
+      - name: Get Packages
+        run: flutter pub get
+
+      - name: Generate Code
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Build Linux
+        run: |
+          flutter build linux --release
+          basedir=$(pwd)
+          cd build/linux/x64/release/bundle
+          tar -czaf ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.tar.gz *
+          mv ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.tar.gz $basedir/build/
 
       - name: Build Flatpak
-        run: |
-          if ls flatpak/*.yaml flatpak/*.json >/dev/null 2>&1; then
-            MANIFEST=$(ls flatpak/*.yaml flatpak/*.json | head -n1)
-            flatpak-builder --force-clean --repo=flatpak-repo flatpak-build "$MANIFEST"
-            flatpak build-bundle flatpak-repo build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.flatpak ${{ env.APP_NAME }}
-          else
-            echo "No flatpak manifest found in flatpak/ - skipping Flatpak package build."
-          fi
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: ${{ env.APP_NAME }}-linux.flatpak
+          manifest-path: flatpak/dev.getboolean.remote_zfs_unlock.yaml
+          cache-key: "flatpak-builder-${{ github.sha }}"
+          arch: ${{ matrix.variant.arch }}
 
       - name: Upload Flatpak
         uses: actions/upload-artifact@v6
         with:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-flatpak
-          path: build/${{ env.APP_NAME }}-*.flatpak
+          path: build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.flatpak
           if-no-files-found: ignore
+
+      - name: Upload Portable Archive
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-portable
+          path: build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.tar.gz
 
       - name: Release Linux Artifacts
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          artifacts: build/${{ env.APP_NAME }}-*.AppImage,build/${{ env.APP_NAME }}-*.snap,build/${{ env.APP_NAME }}-*.flatpak
+          artifacts: build/${{ env.APP_NAME }}-*.flatpak
           allowUpdates: true
           omitBodyDuringUpdate: true
 
