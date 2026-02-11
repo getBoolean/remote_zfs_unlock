@@ -573,7 +573,8 @@ jobs:
 
       - name: Build Deb
         run: |
-          fastforge package --platform linux --targets deb --path build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.deb
+          fastforge package --platform linux --targets deb
+          mv dist/*.deb build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.deb
 
       - name: Upload Deb
         uses: actions/upload-artifact@v6
@@ -584,7 +585,8 @@ jobs:
 
       - name: Build RPM
         run: |
-          fastforge package --platform linux --targets rpm --path build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.rpm
+          fastforge package --platform linux --targets rpm
+          mv dist/*.rpm build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.rpm
 
       - name: Upload RPM
         uses: actions/upload-artifact@v6
