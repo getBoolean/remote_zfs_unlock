@@ -497,6 +497,8 @@ jobs:
           sudo apt-get install -y build-essential libsecret-1-dev libsecret-1-0 libjsoncpp-dev libsecret-tools libusb-dev
           sudo apt-get install -y libfuse2 libsqlite3-0 libsqlite3-dev squashfs-tools flatpak flatpak-builder
           sudo snap install snapcraft --classic
+          sudo snap install lxd
+          sudo lxd init --auto
 
       - name: Check Flutter Version
         run: flutter --version
@@ -527,23 +529,22 @@ jobs:
           name: ${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux-appimage
           path: build/${{ env.APP_NAME }}-*.AppImage
           if-no-files-found: error
-
-      - uses: snapcore/action-build@v1
-        name: Build Snap
-        id: snapcraft 
         
-      - name: Rename Built Snap
+      - name: Build Snap
         run: |
           if [ -f snap/snapcraft.yaml ]; then
-            if compgen -G "${{ steps.snapcraft.outputs.snap }}" >/dev/null; then
-              mv "${{ steps.snapcraft.outputs.snap }}" "build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap"
+            if snapcraft pack --destructive-mode; then
+              if compgen -G "./*.snap" >/dev/null; then
+                mv ./*.snap build/${{ env.APP_NAME }}-${{ env.BRANCH_NAME }}-linux.snap
             else
               echo "::warning::Snap build reported success but produced no .snap artifact."
+            fi
+            else
+              echo "::warning::Snap build failed. Skipping Snap artifact for this run."
             fi
           else
             echo "No snap/snapcraft.yaml found - skipping Snap package build."
           fi
-
       - name: Upload Snap
         uses: actions/upload-artifact@v6
         with:
