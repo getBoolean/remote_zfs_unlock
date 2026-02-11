@@ -1,5 +1,6 @@
 icon: linux/packaging/gui/logo.png
 summary: Remote ZFS Unlock
+license: MIT License
 group: System/File/Storage/ZFS
 vendor: GetBoolean
 packager: GetBoolean
