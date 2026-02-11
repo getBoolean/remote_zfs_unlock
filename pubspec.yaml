@@ -1,7 +1,7 @@
 name: remote_zfs_unlock
 description: "Remote ZFS Unlock"
 publish_to: "none"
-version: 1.0.0
+version: 1.0.0+2
 
 environment:
   sdk: ^3.9.2

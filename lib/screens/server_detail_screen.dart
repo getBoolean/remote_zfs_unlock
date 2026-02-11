@@ -49,7 +49,9 @@ class ServerDetailScreen extends HookConsumerWidget {
       } catch (error) {
         showStatusSnack('$error', isError: true);
       } finally {
-        loading.value = false;
+        if (context.mounted) {
+          loading.value = false;
+        }
       }
     }
 
