@@ -3,12 +3,8 @@ version: "1.0.0"
 summary: Remote ZFS unlock utility
 description: A utility app for remotely unlocking encrypted ZFS datasets.
 
-architectures:
-  - build-on: [amd64]
-  - build-on: [arm64]
-
 confinement: strict
-base: core22
+base: core24
 grade: stable
 
 slots:
