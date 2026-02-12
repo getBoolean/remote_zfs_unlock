@@ -65,6 +65,9 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     final selectedSortField = useState<DatasetSortField>(
       DatasetSortField.datasetName,
     );
+    final sortDirection = useState<DatasetSortDirection>(
+      DatasetSortDirection.ascending,
+    );
 
     final zfsService = ref.watch(zfsServiceProvider);
     final notifier = ref.read(serverListProvider.notifier);
@@ -491,6 +494,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
 
     useEffect(() {
       selectedSortField.value = loadDatasetSortField(profileId: profile.id);
+      sortDirection.value = loadDatasetSortDirection(profileId: profile.id);
       return null;
     }, [datasetSortKey]);
 
@@ -498,7 +502,12 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         .where((dataset) => visibleDatasetTypes.value.contains(dataset.type))
         .toList();
     filteredDatasets.sort(
-      (a, b) => compareDatasets(a, b, selectedSortField.value),
+      (a, b) => compareDatasets(
+        a,
+        b,
+        selectedSortField.value,
+        direction: sortDirection.value,
+      ),
     );
 
     return Scaffold(
@@ -520,7 +529,24 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
             onSortChanged: (field) {
               selectedSortField.value = field;
               unawaited(
-                persistDatasetSortField(profileId: profile.id, field: field),
+                persistDatasetSortSettings(
+                  profileId: profile.id,
+                  field: field,
+                  direction: sortDirection.value,
+                ),
+              );
+            },
+          ),
+          DatasetSortDirectionButton(
+            direction: sortDirection.value,
+            onDirectionChanged: (direction) {
+              sortDirection.value = direction;
+              unawaited(
+                persistDatasetSortSettings(
+                  profileId: profile.id,
+                  field: selectedSortField.value,
+                  direction: direction,
+                ),
               );
             },
           ),

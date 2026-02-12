@@ -18,6 +18,18 @@ enum DatasetSortField {
   String get storageValue => name;
 }
 
+enum DatasetSortDirection {
+  ascending('Ascending', Icons.arrow_upward),
+  descending('Descending', Icons.arrow_downward);
+
+  const DatasetSortDirection(this.label, this.icon);
+
+  final String label;
+  final IconData icon;
+
+  String get storageValue => name;
+}
+
 class DatasetSortButton extends StatelessWidget {
   const DatasetSortButton({
     required this.selectedSortField,
@@ -48,6 +60,31 @@ class DatasetSortButton extends StatelessWidget {
   }
 }
 
+class DatasetSortDirectionButton extends StatelessWidget {
+  const DatasetSortDirectionButton({
+    required this.direction,
+    required this.onDirectionChanged,
+    super.key,
+  });
+
+  final DatasetSortDirection direction;
+  final void Function(DatasetSortDirection direction) onDirectionChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final nextDirection = direction == DatasetSortDirection.ascending
+        ? DatasetSortDirection.descending
+        : DatasetSortDirection.ascending;
+    return IconButton(
+      tooltip: 'Sort ${direction.label.toLowerCase()}',
+      onPressed: () {
+        onDirectionChanged(nextDirection);
+      },
+      icon: Icon(direction.icon),
+    );
+  }
+}
+
 DatasetSortField decodeDatasetSortField(List<dynamic>? encoded) {
   final rawValue = encoded == null || encoded.isEmpty ? null : encoded.first;
   if (rawValue is! String) {
@@ -61,24 +98,80 @@ DatasetSortField decodeDatasetSortField(List<dynamic>? encoded) {
   return DatasetSortField.datasetName;
 }
 
+DatasetSortDirection decodeDatasetSortDirection(List<dynamic>? encoded) {
+  if (encoded == null || encoded.length < 2) {
+    return DatasetSortDirection.ascending;
+  }
+  final rawValue = encoded[1];
+  if (rawValue is! String) {
+    return DatasetSortDirection.ascending;
+  }
+  for (final candidate in DatasetSortDirection.values) {
+    if (candidate.storageValue == rawValue || candidate.name == rawValue) {
+      return candidate;
+    }
+  }
+  return DatasetSortDirection.ascending;
+}
+
 DatasetSortField loadDatasetSortField({required String profileId}) {
   final uiPreferencesBox = Hive.box<List<dynamic>>(uiPreferencesBoxName);
   final datasetSortKey = 'dataset_sort_$profileId';
   return decodeDatasetSortField(uiPreferencesBox.get(datasetSortKey));
 }
 
+DatasetSortDirection loadDatasetSortDirection({required String profileId}) {
+  final uiPreferencesBox = Hive.box<List<dynamic>>(uiPreferencesBoxName);
+  final datasetSortKey = 'dataset_sort_$profileId';
+  return decodeDatasetSortDirection(uiPreferencesBox.get(datasetSortKey));
+}
+
 Future<void> persistDatasetSortField({
   required String profileId,
   required DatasetSortField field,
 }) {
-  final uiPreferencesBox = Hive.box<List<dynamic>>(uiPreferencesBoxName);
-  final datasetSortKey = 'dataset_sort_$profileId';
-  return uiPreferencesBox.put(datasetSortKey, <String>[field.storageValue]);
+  final currentDirection = loadDatasetSortDirection(profileId: profileId);
+  return persistDatasetSortSettings(
+    profileId: profileId,
+    field: field,
+    direction: currentDirection,
+  );
 }
 
-int compareDatasets(ZfsDataset a, ZfsDataset b, DatasetSortField sortField) {
+Future<void> persistDatasetSortDirection({
+  required String profileId,
+  required DatasetSortDirection direction,
+}) {
+  final currentField = loadDatasetSortField(profileId: profileId);
+  return persistDatasetSortSettings(
+    profileId: profileId,
+    field: currentField,
+    direction: direction,
+  );
+}
+
+Future<void> persistDatasetSortSettings({
+  required String profileId,
+  required DatasetSortField field,
+  required DatasetSortDirection direction,
+}) {
+  final uiPreferencesBox = Hive.box<List<dynamic>>(uiPreferencesBoxName);
+  final datasetSortKey = 'dataset_sort_$profileId';
+  return uiPreferencesBox.put(
+    datasetSortKey,
+    <String>[field.storageValue, direction.storageValue],
+  );
+}
+
+int compareDatasets(
+  ZfsDataset a,
+  ZfsDataset b,
+  DatasetSortField sortField, {
+  DatasetSortDirection direction = DatasetSortDirection.ascending,
+}) {
   if (sortField == DatasetSortField.datasetName) {
-    return _compareNameCaseInsensitive(a.name, b.name);
+    final byName = _compareNameCaseInsensitive(a.name, b.name);
+    return direction == DatasetSortDirection.ascending ? byName : -byName;
   }
 
   final byChosenField = switch (sortField) {
@@ -103,9 +196,12 @@ int compareDatasets(ZfsDataset a, ZfsDataset b, DatasetSortField sortField) {
   };
 
   if (byChosenField != 0) {
-    return byChosenField;
+    return direction == DatasetSortDirection.ascending
+        ? byChosenField
+        : -byChosenField;
   }
-  return _compareNameCaseInsensitive(a.name, b.name);
+  final byName = _compareNameCaseInsensitive(a.name, b.name);
+  return direction == DatasetSortDirection.ascending ? byName : -byName;
 }
 
 bool _isMountedDataset(ZfsDataset dataset) =>
