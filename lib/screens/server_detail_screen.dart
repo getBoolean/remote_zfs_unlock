@@ -11,6 +11,7 @@ import 'package:remote_zfs_unlock/models/unlock_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
 import 'package:remote_zfs_unlock/screens/create_dataset_dialog.dart';
+import 'package:remote_zfs_unlock/screens/delete_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/lock_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
 import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
@@ -377,69 +378,10 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     }
 
     Future<void> deleteDataset(ZfsDataset dataset) async {
-      final confirmationController = TextEditingController();
       final shouldProceed = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Delete dataset'),
-          content: ValueListenableBuilder<TextEditingValue>(
-            valueListenable: confirmationController,
-            builder: (context, value, child) {
-              final isExactMatch = value.text == dataset.name;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Permanently destroy `${dataset.name}`?\n\n'
-                    'This cannot be undone.',
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Type the dataset name to confirm:',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: confirmationController,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      border: const OutlineInputBorder(),
-                      hintText: dataset.name,
-                      helperText: isExactMatch
-                          ? 'Name matches. You can delete now.'
-                          : 'Name must match exactly.',
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: confirmationController,
-              builder: (context, value, child) {
-                final isExactMatch = value.text == dataset.name;
-                return FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                    foregroundColor: Theme.of(context).colorScheme.onError,
-                  ),
-                  onPressed: isExactMatch
-                      ? () => Navigator.of(context).pop(true)
-                      : null,
-                  child: const Text('Delete'),
-                );
-              },
-            ),
-          ],
-        ),
+        builder: (context) => DeleteDatasetDialog(datasetName: dataset.name),
       );
-      confirmationController.dispose();
       if (shouldProceed != true) {
         return;
       }
