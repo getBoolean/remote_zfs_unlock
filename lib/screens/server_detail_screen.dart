@@ -98,14 +98,12 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       return zfsService.listDatasets(profile: profile, secrets: secrets);
     }
 
-    Future<void> refreshDatasets({bool showSuccessSnack = true}) {
+    Future<void> refreshDatasets() {
       return withBusy(() async {
         datasets.value = await fetchDatasets();
-        if (showSuccessSnack) {
-          showStatusSnack('Dataset list refreshed.');
-        }
       });
     }
+
     _isLoading = () => loading.value;
     _refreshDatasets = refreshDatasets;
 
@@ -135,54 +133,120 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       showStatusSnack('Copied $label.');
     }
 
+    Future<ZfsDataset?> refreshAndValidateDatasetState({
+      required ZfsDataset dataset,
+      required bool expectedMounted,
+      required bool expectedKeyLoaded,
+      required String actionLabel,
+    }) async {
+      await refreshDatasets();
+      final latestDataset = datasets.value.where(
+        (item) => item.name == dataset.name,
+      );
+      if (latestDataset.isEmpty) {
+        showStatusSnack(
+          '`${dataset.name}` was not found after refresh. Action cancelled.',
+          isError: true,
+        );
+        return null;
+      }
+      final current = latestDataset.first;
+      final isMounted = current.mounted.toLowerCase().trim() == 'yes';
+      if (isMounted != expectedMounted ||
+          current.isKeyLoaded != expectedKeyLoaded) {
+        final mountedState = isMounted ? 'mounted' : 'not mounted';
+        final keyState = current.isKeyLoaded ? 'key loaded' : 'key not loaded';
+        showStatusSnack(
+          '`${dataset.name}` is now $mountedState and $keyState. Cannot $actionLabel.',
+          isError: true,
+        );
+        return null;
+      }
+      return current;
+    }
+
     Future<void> lockDataset(ZfsDataset dataset) async {
-      final shouldProceed = await showDialog<bool>(
+      final currentDataset = await showDialog<ZfsDataset>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Lock dataset'),
-          content: Text('Unload key for `${dataset.name}`?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+        builder: (dialogContext) {
+          var isSubmitting = false;
+          return StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: const Text('Lock dataset'),
+              content: Text('Unload key for `${dataset.name}`?'),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          setDialogState(() => isSubmitting = true);
+                          final validatedDataset =
+                              await refreshAndValidateDatasetState(
+                                dataset: dataset,
+                                expectedMounted: true,
+                                expectedKeyLoaded: true,
+                                actionLabel: 'lock',
+                              );
+                          if (!context.mounted) {
+                            return;
+                          }
+                          setDialogState(() => isSubmitting = false);
+                          if (validatedDataset == null) {
+                            return;
+                          }
+                          Navigator.of(dialogContext).pop(validatedDataset);
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Lock'),
+                ),
+              ],
             ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Lock'),
-            ),
-          ],
-        ),
+          );
+        },
       );
 
-      if (shouldProceed != true) {
+      if (currentDataset == null) {
         return;
       }
 
       await withBusy(() async {
         final secrets = await readSecrets();
-        final isMounted = dataset.mounted.toLowerCase().trim() == 'yes';
+        final isMounted = currentDataset.mounted.toLowerCase().trim() == 'yes';
         if (isMounted) {
           await zfsService.unmountDataset(
             profile: profile,
             secrets: secrets,
-            datasetName: dataset.name,
+            datasetName: currentDataset.name,
           );
         }
         await zfsService.lockDataset(
           profile: profile,
           secrets: secrets,
-          datasetName: dataset.name,
+          datasetName: currentDataset.name,
         );
         datasets.value = await fetchDatasets();
         showStatusSnack(
           isMounted
-              ? 'Unmounted and locked `${dataset.name}`.'
-              : 'Locked `${dataset.name}`.',
+              ? 'Unmounted and locked `${currentDataset.name}`.'
+              : 'Locked `${currentDataset.name}`.',
         );
       });
     }
 
     Future<void> unlockDataset(ZfsDataset dataset) async {
+      ZfsDataset? currentDataset;
+
       UnlockMethod? allowedMethod;
       switch (dataset.keyFormat) {
         case ZfsKeyFormatType.passphrase:
@@ -218,6 +282,15 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         builder: (context) => UnlockDialog(
           allowedMethod: allowedMethod!,
           initialServerKeyFilePath: initialServerKeyFilePath,
+          onSubmitValidation: () async {
+            currentDataset = await refreshAndValidateDatasetState(
+              dataset: dataset,
+              expectedMounted: false,
+              expectedKeyLoaded: false,
+              actionLabel: 'unlock',
+            );
+            return currentDataset != null;
+          },
           serverPathSuggestions: (query) async {
             final secrets = await readSecrets();
             return zfsService.suggestServerKeyFilePaths(
@@ -231,26 +304,33 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       if (request == null) {
         return;
       }
+      if (currentDataset == null) {
+        showStatusSnack(
+          'Could not verify current dataset state. Try again.',
+          isError: true,
+        );
+        return;
+      }
       await withBusy(() async {
         final secrets = await readSecrets();
         await zfsService.unlockDataset(
           profile: profile,
           secrets: secrets,
-          datasetName: dataset.name,
+          datasetName: currentDataset!.name,
           request: request,
         );
-        if (dataset.type == ZfsDatasetType.filesystem) {
+        if (currentDataset!.type == ZfsDatasetType.filesystem) {
           await zfsService.mountDataset(
             profile: profile,
             secrets: secrets,
-            datasetName: dataset.name,
+            datasetName: currentDataset!.name,
           );
         }
         datasets.value = await fetchDatasets();
         showStatusSnack(
-          dataset.type == ZfsDatasetType.filesystem
-              ? 'Unlocked and mounted `${dataset.name}`.'
-              : 'Unlocked `${dataset.name}`.',
+          currentDataset!.type == ZfsDatasetType.filesystem
+              ? 'Unlocked and mounted `${currentDataset!.name}`.'
+              : 'Unlocked `${currentDataset!.name}`.',
         );
       });
     }
@@ -384,7 +464,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     }
 
     useEffect(() {
-      Future<void>.microtask(() => refreshDatasets(showSuccessSnack: false));
+      Future<void>.microtask(refreshDatasets);
       return null;
     }, const []);
 
@@ -454,7 +534,11 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
                       final keyStatusLabel = _formatEnumName(
                         dataset.keyStatus.name,
                       );
+                      final hasKeyLocationConfigured =
+                          dataset.keyLocation.trim().toLowerCase() != 'none';
                       final actionButton = !dataset.isEncrypted
+                          ? const SizedBox.shrink()
+                          : !hasKeyLocationConfigured
                           ? const SizedBox.shrink()
                           : dataset.isKeyLoaded
                           ? FilledButton.tonalIcon(
