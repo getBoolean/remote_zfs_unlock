@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
@@ -55,6 +58,9 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
   Widget build(BuildContext context) {
     final loading = useState(false);
     final datasets = useState<List<ZfsDataset>>(<ZfsDataset>[]);
+    final visibleDatasetTypes = useState<Set<ZfsDatasetType>>({
+      ZfsDatasetType.filesystem,
+    });
 
     final zfsService = ref.watch(zfsServiceProvider);
     final notifier = ref.read(serverListProvider.notifier);
@@ -478,6 +484,10 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       return null;
     }, const []);
 
+    final filteredDatasets = datasets.value
+        .where((dataset) => visibleDatasetTypes.value.contains(dataset.type))
+        .toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.profile.name),
@@ -521,13 +531,39 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
                     ),
                   )
                 : ListView.builder(
-                    itemCount: datasets.value.length,
+                    itemCount: filteredDatasets.isEmpty
+                        ? 2
+                        : filteredDatasets.length + 1,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
                     ),
                     itemBuilder: (context, index) {
-                      final dataset = datasets.value[index];
+                      if (index == 0) {
+                        return _DatasetTypeFilterChips(
+                          profileId: profile.id,
+                          onSelectionChanged: (selectedTypes) {
+                            visibleDatasetTypes.value = selectedTypes;
+                          },
+                        );
+                      }
+                      if (filteredDatasets.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.filter_alt_off_outlined, size: 44),
+                              SizedBox(height: 12),
+                              Text(
+                                'No datasets match the selected type filters.',
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      final dataset = filteredDatasets[index - 1];
                       final encryptedLabel = dataset.isEncrypted
                           ? 'Encrypted'
                           : 'Not encrypted';
@@ -771,6 +807,107 @@ class _DatasetPropertyChip extends StatelessWidget {
       label: Text('$label: $value'),
       visualDensity: VisualDensity.compact,
       onPressed: onPressed,
+    );
+  }
+}
+
+class _DatasetTypeFilterChips extends HookWidget {
+  const _DatasetTypeFilterChips({
+    required this.profileId,
+    required this.onSelectionChanged,
+  });
+
+  final String profileId;
+  final void Function(Set<ZfsDatasetType> selectedTypes) onSelectionChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedTypes = useState<Set<ZfsDatasetType>>({
+      ZfsDatasetType.filesystem,
+    });
+    final uiPreferencesBox = Hive.box<List<dynamic>>(uiPreferencesBoxName);
+    final datasetTypeFilterKey = 'dataset_type_filter_$profileId';
+
+    Set<ZfsDatasetType> decodeSelectedTypes(List<dynamic>? encoded) {
+      final decoded = <ZfsDatasetType>{};
+      if (encoded != null) {
+        for (final raw in encoded) {
+          if (raw is! String) {
+            continue;
+          }
+          for (final candidate in ZfsDatasetType.values) {
+            if (candidate.name == raw) {
+              decoded.add(candidate);
+              break;
+            }
+          }
+        }
+      }
+      if (decoded.isEmpty) {
+        decoded.add(ZfsDatasetType.filesystem);
+      }
+      return decoded;
+    }
+
+    void persistSelectedTypes(Set<ZfsDatasetType> types) {
+      final encoded = types.map((type) => type.name).toList()..sort();
+      unawaited(uiPreferencesBox.put(datasetTypeFilterKey, encoded));
+    }
+
+    void notifyParentSelectionChanged(
+      Set<ZfsDatasetType> types, {
+      bool postFrame = false,
+    }) {
+      if (!postFrame) {
+        onSelectionChanged(types);
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        onSelectionChanged(types);
+      });
+    }
+
+    void updateTypeSelection(ZfsDatasetType type, bool shouldSelect) {
+      final next = <ZfsDatasetType>{...selectedTypes.value};
+      if (shouldSelect) {
+        next.add(type);
+      } else {
+        next.remove(type);
+      }
+      if (next.isEmpty) {
+        next.add(ZfsDatasetType.filesystem);
+      }
+      selectedTypes.value = next;
+      notifyParentSelectionChanged(next);
+      persistSelectedTypes(next);
+    }
+
+    useEffect(() {
+      final decoded = decodeSelectedTypes(uiPreferencesBox.get(datasetTypeFilterKey));
+      selectedTypes.value = decoded;
+      notifyParentSelectionChanged(decoded, postFrame: true);
+      return null;
+    }, [datasetTypeFilterKey]);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final type in ZfsDatasetType.values.where(
+              (type) => type != ZfsDatasetType.unknown,
+            ))
+              FilterChip(
+                label: Text(_formatEnumName(type.name)),
+                selected: selectedTypes.value.contains(type),
+                onSelected: (selected) => updateTypeSelection(type, selected),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

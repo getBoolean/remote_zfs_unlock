@@ -11,6 +11,7 @@ import 'package:remote_zfs_unlock/services/zfs_service.dart';
 part 'app_providers.g.dart';
 
 const serverProfilesBoxName = 'server_profiles';
+const uiPreferencesBoxName = 'ui_preferences';
 
 @riverpod
 Box<Map<dynamic, dynamic>> serverProfilesBox(Ref ref) =>
