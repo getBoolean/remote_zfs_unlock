@@ -350,326 +350,400 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.profile.name),
-        actions: [
-          IconButton(
-            tooltip: 'Test connection',
-            onPressed: loading.value ? null : testConnection,
-            icon: const Icon(Icons.link),
-          ),
-          IconButton(
-            tooltip: 'Create dataset',
-            onPressed: loading.value ? null : createDataset,
-            icon: const Icon(Icons.create_new_folder_outlined),
-          ),
-          DatasetSortButton(
-            selectedSortField: selectedSortField.value,
-            onSortChanged: (field) {
-              selectedSortField.value = field;
-              unawaited(
-                persistDatasetSortSettings(
-                  profileId: profile.id,
-                  field: field,
-                  direction: sortDirection.value,
-                ),
-              );
-            },
-          ),
-          DatasetSortDirectionButton(
-            direction: sortDirection.value,
-            onDirectionChanged: (direction) {
-              sortDirection.value = direction;
-              unawaited(
-                persistDatasetSortSettings(
-                  profileId: profile.id,
-                  field: selectedSortField.value,
-                  direction: direction,
-                ),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Refresh datasets',
-            onPressed: loading.value ? null : refreshDatasets,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
+      appBar: _ServerDetailNavBar(
+        profileName: widget.profile.name,
+        isLoading: loading.value,
+        selectedSortField: selectedSortField.value,
+        sortDirection: sortDirection.value,
+        onTestConnection: testConnection,
+        onCreateDataset: createDataset,
+        onRefreshDatasets: refreshDatasets,
+        onSortChanged: (field) {
+          selectedSortField.value = field;
+          unawaited(
+            persistDatasetSortSettings(
+              profileId: profile.id,
+              field: field,
+              direction: sortDirection.value,
+            ),
+          );
+        },
+        onSortDirectionChanged: (direction) {
+          sortDirection.value = direction;
+          unawaited(
+            persistDatasetSortSettings(
+              profileId: profile.id,
+              field: selectedSortField.value,
+              direction: direction,
+            ),
+          );
+        },
       ),
       body: Column(
         children: [
           if (loading.value) const LinearProgressIndicator(),
-          Expanded(
-            child: datasets.value.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.inventory_2_outlined, size: 44),
-                          SizedBox(height: 12),
-                          Text(
-                            'No datasets found for this server.',
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: filteredDatasets.isEmpty
-                        ? 2
-                        : filteredDatasets.length + 1,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return _DatasetTypeFilterChips(
-                          profileId: profile.id,
-                          onSelectionChanged: (selectedTypes) {
-                            visibleDatasetTypes.value = selectedTypes;
-                          },
-                        );
-                      }
-                      if (filteredDatasets.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.filter_alt_off_outlined, size: 44),
-                              SizedBox(height: 12),
-                              Text(
-                                'No datasets match the selected type filters.',
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-                      final dataset = filteredDatasets[index - 1];
-                      final encryptedLabel = dataset.isEncrypted
-                          ? 'Encrypted'
-                          : 'Not encrypted';
-                      final isMounted =
-                          dataset.mounted.toLowerCase().trim() == 'yes';
-                      final typeLabel = _formatEnumName(dataset.type.name);
-                      final dedupLabel = _formatEnumName(dataset.dedup.name);
-                      final compressionLabel = _formatEnumName(
-                        dataset.compression.name,
-                      );
-                      final keyFormatLabel = _formatEnumName(
-                        dataset.keyFormat.name,
-                      );
-                      final keyStatusLabel = _formatEnumName(
-                        dataset.keyStatus.name,
-                      );
-                      final hasKeyLocationConfigured =
-                          dataset.keyLocation.trim().toLowerCase() != 'none';
-                      final actionButton = !dataset.isEncrypted
-                          ? const SizedBox.shrink()
-                          : !hasKeyLocationConfigured
-                          ? const SizedBox.shrink()
-                          : dataset.isKeyLoaded
-                          ? FilledButton.tonalIcon(
-                              onPressed: loading.value
-                                  ? null
-                                  : () => lockDataset(dataset),
-                              icon: const Icon(Icons.lock_outline),
-                              label: const Text('Lock'),
-                            )
-                          : FilledButton.icon(
-                              onPressed: loading.value
-                                  ? null
-                                  : () => unlockDataset(dataset),
-                              icon: const Icon(Icons.lock_open_outlined),
-                              label: const Text('Unlock'),
-                            );
-                      final canDeleteDataset =
-                          dataset.usedByDataset.trim().toUpperCase() == '234K';
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      dataset.name,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                  ),
-                                  Chip(
-                                    avatar: Icon(
-                                      dataset.isEncrypted
-                                          ? Icons.shield_outlined
-                                          : Icons.shield_moon_outlined,
-                                      size: 16,
-                                    ),
-                                    label: Text(encryptedLabel),
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 6,
-                                children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        isMounted
-                                            ? Icons.check_circle_outline
-                                            : Icons.cancel_outlined,
-                                        size: 16,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        isMounted ? 'Mounted' : 'Not mounted',
-                                      ),
-                                    ],
-                                  ),
-                                  if (dataset.isEncrypted) ...[
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.vpn_key_outlined,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text('Key: $keyStatusLabel'),
-                                      ],
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  _DatasetPropertyChip(
-                                    label: 'Type',
-                                    value: typeLabel,
-                                    icon: Icons.category_outlined,
-                                    onPressed: () => copyPropertyToClipboard(
-                                      label: 'Type',
-                                      value: typeLabel,
-                                    ),
-                                  ),
-                                  _DatasetPropertyChip(
-                                    label: 'Used',
-                                    value: _displayValue(dataset.usedByDataset),
-                                    icon: Icons.data_usage_outlined,
-                                    onPressed: () => copyPropertyToClipboard(
-                                      label: 'Used',
-                                      value: _displayValue(
-                                        dataset.usedByDataset,
-                                      ),
-                                    ),
-                                  ),
-                                  _DatasetPropertyChip(
-                                    label: 'Available',
-                                    value: _displayValue(dataset.available),
-                                    icon: Icons.storage_outlined,
-                                    onPressed: () => copyPropertyToClipboard(
-                                      label: 'Available',
-                                      value: _displayValue(dataset.available),
-                                    ),
-                                  ),
-                                  _DatasetPropertyChip(
-                                    label: 'Compression',
-                                    value: compressionLabel,
-                                    icon: Icons.compress_outlined,
-                                    onPressed: () => copyPropertyToClipboard(
-                                      label: 'Compression',
-                                      value: compressionLabel,
-                                    ),
-                                  ),
-                                  _DatasetPropertyChip(
-                                    label: 'Dedup',
-                                    value: dedupLabel,
-                                    icon: Icons.copy_all_outlined,
-                                    onPressed: () => copyPropertyToClipboard(
-                                      label: 'Dedup',
-                                      value: dedupLabel,
-                                    ),
-                                  ),
-                                  _DatasetPropertyChip(
-                                    label: 'Mountpoint',
-                                    value: _displayValue(dataset.mountPoint),
-                                    icon: Icons.folder_open_outlined,
-                                    onPressed: () => copyPropertyToClipboard(
-                                      label: 'Mountpoint',
-                                      value: _displayValue(dataset.mountPoint),
-                                    ),
-                                  ),
-                                  if (dataset.isEncrypted) ...[
-                                    _DatasetPropertyChip(
-                                      label: 'Key format',
-                                      value: keyFormatLabel,
-                                      icon: Icons.vpn_key_outlined,
-                                      onPressed: () => copyPropertyToClipboard(
-                                        label: 'Key format',
-                                        value: keyFormatLabel,
-                                      ),
-                                    ),
-                                    _DatasetPropertyChip(
-                                      label: 'Key location',
-                                      value: _displayValue(dataset.keyLocation),
-                                      icon: Icons.location_on_outlined,
-                                      onPressed: () => copyPropertyToClipboard(
-                                        label: 'Key location',
-                                        value: _displayValue(
-                                          dataset.keyLocation,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              if (dataset.isEncrypted || canDeleteDataset) ...[
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    if (canDeleteDataset)
-                                      FilledButton.tonalIcon(
-                                        onPressed: loading.value
-                                            ? null
-                                            : () => deleteDataset(dataset),
-                                        icon: const Icon(Icons.delete_outline),
-                                        label: const Text('Delete'),
-                                      ),
-                                    if (dataset.isEncrypted) ...[
-                                      if (canDeleteDataset)
-                                        const SizedBox(width: 8),
-                                      actionButton,
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+          if (datasets.value.isNotEmpty)
+            _ServerDetailFilterBar(
+              profileId: profile.id,
+              onSelectionChanged: (selectedTypes) {
+                visibleDatasetTypes.value = selectedTypes;
+              },
+            ),
+          _ServerDetailBody(
+            datasets: datasets.value,
+            filteredDatasets: filteredDatasets,
+            isLoading: loading.value,
+            onCopyPropertyToClipboard: copyPropertyToClipboard,
+            onLockDataset: lockDataset,
+            onUnlockDataset: unlockDataset,
+            onDeleteDataset: deleteDataset,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ServerDetailNavBar extends StatelessWidget implements PreferredSizeWidget {
+  const _ServerDetailNavBar({
+    required this.profileName,
+    required this.isLoading,
+    required this.selectedSortField,
+    required this.sortDirection,
+    required this.onTestConnection,
+    required this.onCreateDataset,
+    required this.onRefreshDatasets,
+    required this.onSortChanged,
+    required this.onSortDirectionChanged,
+  });
+
+  final String profileName;
+  final bool isLoading;
+  final DatasetSortField selectedSortField;
+  final DatasetSortDirection sortDirection;
+  final Future<void> Function() onTestConnection;
+  final Future<void> Function() onCreateDataset;
+  final Future<void> Function() onRefreshDatasets;
+  final void Function(DatasetSortField field) onSortChanged;
+  final void Function(DatasetSortDirection direction) onSortDirectionChanged;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      title: Text(profileName),
+      actions: [
+        IconButton(
+          tooltip: 'Test connection',
+          onPressed: isLoading ? null : onTestConnection,
+          icon: const Icon(Icons.link),
+        ),
+        IconButton(
+          tooltip: 'Create dataset',
+          onPressed: isLoading ? null : onCreateDataset,
+          icon: const Icon(Icons.create_new_folder_outlined),
+        ),
+        DatasetSortButton(
+          selectedSortField: selectedSortField,
+          onSortChanged: onSortChanged,
+        ),
+        DatasetSortDirectionButton(
+          direction: sortDirection,
+          onDirectionChanged: onSortDirectionChanged,
+        ),
+        IconButton(
+          tooltip: 'Refresh datasets',
+          onPressed: isLoading ? null : onRefreshDatasets,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    );
+  }
+}
+
+class _ServerDetailFilterBar extends StatelessWidget {
+  const _ServerDetailFilterBar({
+    required this.profileId,
+    required this.onSelectionChanged,
+  });
+
+  final String profileId;
+  final void Function(Set<ZfsDatasetType> selectedTypes) onSelectionChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: _DatasetTypeFilterChips(
+        profileId: profileId,
+        onSelectionChanged: onSelectionChanged,
+      ),
+    );
+  }
+}
+
+class _ServerDetailBody extends StatelessWidget {
+  const _ServerDetailBody({
+    required this.datasets,
+    required this.filteredDatasets,
+    required this.isLoading,
+    required this.onCopyPropertyToClipboard,
+    required this.onLockDataset,
+    required this.onUnlockDataset,
+    required this.onDeleteDataset,
+  });
+
+  final List<ZfsDataset> datasets;
+  final List<ZfsDataset> filteredDatasets;
+  final bool isLoading;
+  final Future<void> Function({
+    required String label,
+    required String value,
+  })
+  onCopyPropertyToClipboard;
+  final Future<void> Function(ZfsDataset dataset) onLockDataset;
+  final Future<void> Function(ZfsDataset dataset) onUnlockDataset;
+  final Future<void> Function(ZfsDataset dataset) onDeleteDataset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: datasets.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.inventory_2_outlined, size: 44),
+                    SizedBox(height: 12),
+                    Text(
+                      'No datasets found for this server.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : filteredDatasets.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.filter_alt_off_outlined, size: 44),
+                    SizedBox(height: 12),
+                    Text(
+                      'No datasets match the selected type filters.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : ListView.builder(
+              itemCount: filteredDatasets.length,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              itemBuilder: (context, index) {
+                final dataset = filteredDatasets[index];
+                final encryptedLabel = dataset.isEncrypted
+                    ? 'Encrypted'
+                    : 'Not encrypted';
+                final isMounted = dataset.mounted.toLowerCase().trim() == 'yes';
+                final typeLabel = _formatEnumName(dataset.type.name);
+                final dedupLabel = _formatEnumName(dataset.dedup.name);
+                final compressionLabel = _formatEnumName(dataset.compression.name);
+                final keyFormatLabel = _formatEnumName(dataset.keyFormat.name);
+                final keyStatusLabel = _formatEnumName(dataset.keyStatus.name);
+                final hasKeyLocationConfigured =
+                    dataset.keyLocation.trim().toLowerCase() != 'none';
+                final actionButton = !dataset.isEncrypted
+                    ? const SizedBox.shrink()
+                    : !hasKeyLocationConfigured
+                    ? const SizedBox.shrink()
+                    : dataset.isKeyLoaded
+                    ? FilledButton.tonalIcon(
+                        onPressed: isLoading ? null : () => onLockDataset(dataset),
+                        icon: const Icon(Icons.lock_outline),
+                        label: const Text('Lock'),
+                      )
+                    : FilledButton.icon(
+                        onPressed: isLoading
+                            ? null
+                            : () => onUnlockDataset(dataset),
+                        icon: const Icon(Icons.lock_open_outlined),
+                        label: const Text('Unlock'),
+                      );
+                final canDeleteDataset =
+                    dataset.usedByDataset.trim().toUpperCase() == '234K';
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                dataset.name,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            Chip(
+                              avatar: Icon(
+                                dataset.isEncrypted
+                                    ? Icons.shield_outlined
+                                    : Icons.shield_moon_outlined,
+                                size: 16,
+                              ),
+                              label: Text(encryptedLabel),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 6,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isMounted
+                                      ? Icons.check_circle_outline
+                                      : Icons.cancel_outlined,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(isMounted ? 'Mounted' : 'Not mounted'),
+                              ],
+                            ),
+                            if (dataset.isEncrypted) ...[
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.vpn_key_outlined, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text('Key: $keyStatusLabel'),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _DatasetPropertyChip(
+                              label: 'Type',
+                              value: typeLabel,
+                              icon: Icons.category_outlined,
+                              onPressed: () => onCopyPropertyToClipboard(
+                                label: 'Type',
+                                value: typeLabel,
+                              ),
+                            ),
+                            _DatasetPropertyChip(
+                              label: 'Used',
+                              value: _displayValue(dataset.usedByDataset),
+                              icon: Icons.data_usage_outlined,
+                              onPressed: () => onCopyPropertyToClipboard(
+                                label: 'Used',
+                                value: _displayValue(dataset.usedByDataset),
+                              ),
+                            ),
+                            _DatasetPropertyChip(
+                              label: 'Available',
+                              value: _displayValue(dataset.available),
+                              icon: Icons.storage_outlined,
+                              onPressed: () => onCopyPropertyToClipboard(
+                                label: 'Available',
+                                value: _displayValue(dataset.available),
+                              ),
+                            ),
+                            _DatasetPropertyChip(
+                              label: 'Compression',
+                              value: compressionLabel,
+                              icon: Icons.compress_outlined,
+                              onPressed: () => onCopyPropertyToClipboard(
+                                label: 'Compression',
+                                value: compressionLabel,
+                              ),
+                            ),
+                            _DatasetPropertyChip(
+                              label: 'Dedup',
+                              value: dedupLabel,
+                              icon: Icons.copy_all_outlined,
+                              onPressed: () => onCopyPropertyToClipboard(
+                                label: 'Dedup',
+                                value: dedupLabel,
+                              ),
+                            ),
+                            _DatasetPropertyChip(
+                              label: 'Mountpoint',
+                              value: _displayValue(dataset.mountPoint),
+                              icon: Icons.folder_open_outlined,
+                              onPressed: () => onCopyPropertyToClipboard(
+                                label: 'Mountpoint',
+                                value: _displayValue(dataset.mountPoint),
+                              ),
+                            ),
+                            if (dataset.isEncrypted) ...[
+                              _DatasetPropertyChip(
+                                label: 'Key format',
+                                value: keyFormatLabel,
+                                icon: Icons.vpn_key_outlined,
+                                onPressed: () => onCopyPropertyToClipboard(
+                                  label: 'Key format',
+                                  value: keyFormatLabel,
+                                ),
+                              ),
+                              _DatasetPropertyChip(
+                                label: 'Key location',
+                                value: _displayValue(dataset.keyLocation),
+                                icon: Icons.location_on_outlined,
+                                onPressed: () => onCopyPropertyToClipboard(
+                                  label: 'Key location',
+                                  value: _displayValue(dataset.keyLocation),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (dataset.isEncrypted || canDeleteDataset) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (canDeleteDataset)
+                                FilledButton.tonalIcon(
+                                  onPressed: isLoading
+                                      ? null
+                                      : () => onDeleteDataset(dataset),
+                                  icon: const Icon(Icons.delete_outline),
+                                  label: const Text('Delete'),
+                                ),
+                              if (dataset.isEncrypted) ...[
+                                if (canDeleteDataset) const SizedBox(width: 8),
+                                actionButton,
+                              ],
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
