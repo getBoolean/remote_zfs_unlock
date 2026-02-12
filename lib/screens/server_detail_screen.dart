@@ -72,6 +72,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     );
 
     final zfsService = ref.watch(zfsServiceProvider);
+    final lockUnlockHelper = ref.watch(datasetLockUnlockHelperProvider);
     final notifier = ref.read(serverListProvider.notifier);
     final profile = widget.profile;
     final datasetSortKey = 'dataset_sort_${profile.id}';
@@ -149,38 +150,6 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       showStatusSnack('Copied $label.');
     }
 
-    Future<ZfsDataset?> refreshAndValidateDatasetState({
-      required ZfsDataset dataset,
-      required bool expectedMounted,
-      required bool expectedKeyLoaded,
-      required String actionLabel,
-    }) async {
-      await refreshDatasets();
-      final latestDataset = datasets.value.where(
-        (item) => item.name == dataset.name,
-      );
-      if (latestDataset.isEmpty) {
-        showStatusSnack(
-          '`${dataset.name}` was not found after refresh. Action cancelled.',
-          isError: true,
-        );
-        return null;
-      }
-      final current = latestDataset.first;
-      final isMounted = current.mounted.toLowerCase().trim() == 'yes';
-      if (isMounted != expectedMounted ||
-          current.isKeyLoaded != expectedKeyLoaded) {
-        final mountedState = isMounted ? 'mounted' : 'not mounted';
-        final keyState = current.isKeyLoaded ? 'key loaded' : 'key not loaded';
-        showStatusSnack(
-          '`${dataset.name}` is now $mountedState and $keyState. Cannot $actionLabel.',
-          isError: true,
-        );
-        return null;
-      }
-      return current;
-    }
-
     Future<void> lockDataset(ZfsDataset dataset) async {
       ZfsDataset? currentDataset;
       final shouldLock = await showDialog<bool>(
@@ -188,12 +157,19 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         builder: (context) => LockDialog(
           datasetName: dataset.name,
           onSubmitValidation: () async {
-            currentDataset = await refreshAndValidateDatasetState(
+            currentDataset = await lockUnlockHelper.refreshAndValidateDatasetState(
+              profile: profile,
+              readSecrets: readSecrets,
               dataset: dataset,
               expectedMounted: true,
               expectedKeyLoaded: true,
-              actionLabel: 'lock',
             );
+            if (currentDataset == null && context.mounted) {
+              showStatusSnack(
+                '`${dataset.name}` is no longer in a lockable state.',
+                isError: true,
+              );
+            }
             return currentDataset != null;
           },
         ),
@@ -205,43 +181,20 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       }
 
       await withBusy(() async {
-        final secrets = await readSecrets();
-        final isMounted = lockedDataset.mounted.toLowerCase().trim() == 'yes';
-        if (isMounted) {
-          await zfsService.unmountDataset(
-            profile: profile,
-            secrets: secrets,
-            datasetName: lockedDataset.name,
-          );
-        }
-        await zfsService.lockDataset(
+        final result = await lockUnlockHelper.lockDataset(
           profile: profile,
-          secrets: secrets,
-          datasetName: lockedDataset.name,
+          readSecrets: readSecrets,
+          dataset: lockedDataset,
         );
-        datasets.value = await fetchDatasets();
-        showStatusSnack(
-          isMounted
-              ? 'Unmounted and locked `${lockedDataset.name}`.'
-              : 'Locked `${lockedDataset.name}`.',
-        );
+        datasets.value = result.datasets;
+        showStatusSnack(result.statusMessage);
       });
     }
 
     Future<void> unlockDataset(ZfsDataset dataset) async {
       ZfsDataset? currentDataset;
 
-      UnlockMethod? allowedMethod;
-      switch (dataset.keyFormat) {
-        case ZfsKeyFormatType.passphrase:
-          allowedMethod = UnlockMethod.passphrase;
-        case ZfsKeyFormatType.raw:
-        case ZfsKeyFormatType.hex:
-          allowedMethod = UnlockMethod.keyFile;
-        case ZfsKeyFormatType.none:
-        case ZfsKeyFormatType.unknown:
-          allowedMethod = null;
-      }
+      final allowedMethod = lockUnlockHelper.resolveUnlockMethod(dataset);
       if (allowedMethod == null) {
         showStatusSnack(
           'Unable to determine unlock key type for `${dataset.name}`.',
@@ -250,29 +203,29 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         return;
       }
 
-      String? initialServerKeyFilePath;
-      if (allowedMethod == UnlockMethod.keyFile) {
-        final rawKeyLocation = dataset.keyLocation.trim();
-        if (rawKeyLocation.startsWith('file://') &&
-            rawKeyLocation.length > 'file://'.length) {
-          initialServerKeyFilePath = rawKeyLocation.substring('file://'.length);
-        } else if (rawKeyLocation.startsWith('/')) {
-          initialServerKeyFilePath = rawKeyLocation;
-        }
-      }
+      final initialServerKeyFilePath = allowedMethod == UnlockMethod.keyFile
+          ? lockUnlockHelper.initialServerKeyFilePath(dataset)
+          : null;
 
       final request = await showDialog<UnlockRequest>(
         context: context,
         builder: (context) => UnlockDialog(
-          allowedMethod: allowedMethod!,
+          allowedMethod: allowedMethod,
           initialServerKeyFilePath: initialServerKeyFilePath,
           onSubmitValidation: () async {
-            currentDataset = await refreshAndValidateDatasetState(
+            currentDataset = await lockUnlockHelper.refreshAndValidateDatasetState(
+              profile: profile,
+              readSecrets: readSecrets,
               dataset: dataset,
               expectedMounted: false,
               expectedKeyLoaded: false,
-              actionLabel: 'unlock',
             );
+            if (currentDataset == null && context.mounted) {
+              showStatusSnack(
+                '`${dataset.name}` is no longer in an unlockable state.',
+                isError: true,
+              );
+            }
             return currentDataset != null;
           },
           serverPathSuggestions: (query) async {
@@ -296,36 +249,14 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         return;
       }
       await withBusy(() async {
-        final secrets = await readSecrets();
-        await zfsService.unlockDataset(
+        final result = await lockUnlockHelper.unlockDataset(
           profile: profile,
-          secrets: secrets,
-          datasetName: currentDataset!.name,
+          readSecrets: readSecrets,
+          dataset: currentDataset!,
           request: request,
         );
-        if (currentDataset!.type == ZfsDatasetType.filesystem) {
-          await zfsService.mountDataset(
-            profile: profile,
-            secrets: secrets,
-            datasetName: currentDataset!.name,
-          );
-        }
-        datasets.value = await fetchDatasets();
-        final hasNestedFilesystem = datasets.value.any(
-          (candidate) =>
-              candidate.type == ZfsDatasetType.filesystem &&
-              candidate.name.startsWith('${currentDataset!.name}/'),
-        );
-        if (hasNestedFilesystem) {
-          // Child datasets can mount shortly after the parent unlock/mount completes.
-          await Future<void>.delayed(const Duration(milliseconds: 1500));
-          datasets.value = await fetchDatasets();
-        }
-        showStatusSnack(
-          currentDataset!.type == ZfsDatasetType.filesystem
-              ? 'Unlocked and mounted `${currentDataset!.name}`.'
-              : 'Unlocked `${currentDataset!.name}`.',
-        );
+        datasets.value = result.datasets;
+        showStatusSnack(result.statusMessage);
       });
     }
 
