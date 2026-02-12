@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
 import 'package:remote_zfs_unlock/repositories/server_repository.dart';
+import 'package:remote_zfs_unlock/services/clipboard_service.dart';
 import 'package:remote_zfs_unlock/services/dataset_lock_unlock_helper.dart';
 import 'package:remote_zfs_unlock/services/secure_storage_service.dart';
 import 'package:remote_zfs_unlock/services/ssh_service.dart';
@@ -41,6 +42,10 @@ ZfsService zfsService(Ref ref) => ZfsService(ref.watch(sshServiceProvider));
 
 final datasetLockUnlockHelperProvider = Provider<DatasetLockUnlockHelper>((ref) {
   return DatasetLockUnlockHelper(ref.watch(zfsServiceProvider));
+});
+
+final clipboardServiceProvider = Provider<ClipboardService>((ref) {
+  return ClipboardService();
 });
 
 @riverpod

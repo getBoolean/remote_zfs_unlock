@@ -15,7 +15,6 @@ import 'package:remote_zfs_unlock/screens/delete_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/lock_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
 import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
-import 'package:super_clipboard/super_clipboard.dart';
 
 class ServerDetailScreen extends StatefulHookConsumerWidget {
   const ServerDetailScreen({required this.profile, super.key});
@@ -73,6 +72,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
 
     final zfsService = ref.watch(zfsServiceProvider);
     final lockUnlockHelper = ref.watch(datasetLockUnlockHelperProvider);
+    final clipboardService = ref.watch(clipboardServiceProvider);
     final notifier = ref.read(serverListProvider.notifier);
     final profile = widget.profile;
     final datasetSortKey = 'dataset_sort_${profile.id}';
@@ -139,14 +139,11 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       required String label,
       required String value,
     }) async {
-      final clipboard = SystemClipboard.instance;
-      if (clipboard == null) {
+      final copied = await clipboardService.copyPlainText(value);
+      if (!copied) {
         showStatusSnack('Clipboard is unavailable on this platform.');
         return;
       }
-      final item = DataWriterItem();
-      item.add(Formats.plainText(value));
-      await clipboard.write([item]);
       showStatusSnack('Copied $label.');
     }
 
