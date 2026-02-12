@@ -98,10 +98,12 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       return zfsService.listDatasets(profile: profile, secrets: secrets);
     }
 
-    Future<void> refreshDatasets() {
+    Future<void> refreshDatasets({bool showSuccessSnack = true}) {
       return withBusy(() async {
         datasets.value = await fetchDatasets();
-        showStatusSnack('Dataset list refreshed.');
+        if (showSuccessSnack) {
+          showStatusSnack('Dataset list refreshed.');
+        }
       });
     }
     _isLoading = () => loading.value;
@@ -382,7 +384,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     }
 
     useEffect(() {
-      Future<void>.microtask(refreshDatasets);
+      Future<void>.microtask(() => refreshDatasets(showSuccessSnack: false));
       return null;
     }, const []);
 
