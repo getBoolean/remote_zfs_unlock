@@ -327,6 +327,16 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           );
         }
         datasets.value = await fetchDatasets();
+        final hasNestedFilesystem = datasets.value.any(
+          (candidate) =>
+              candidate.type == ZfsDatasetType.filesystem &&
+              candidate.name.startsWith('${currentDataset!.name}/'),
+        );
+        if (hasNestedFilesystem) {
+          // Child datasets can mount shortly after the parent unlock/mount completes.
+          await Future<void>.delayed(const Duration(milliseconds: 1500));
+          datasets.value = await fetchDatasets();
+        }
         showStatusSnack(
           currentDataset!.type == ZfsDatasetType.filesystem
               ? 'Unlocked and mounted `${currentDataset!.name}`.'
