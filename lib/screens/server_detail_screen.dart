@@ -11,18 +11,54 @@ import 'package:remote_zfs_unlock/screens/create_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
-class ServerDetailScreen extends HookConsumerWidget {
+class ServerDetailScreen extends StatefulHookConsumerWidget {
   const ServerDetailScreen({required this.profile, super.key});
 
   final ServerProfile profile;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ServerDetailScreen> createState() => _ServerDetailScreenState();
+}
+
+class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
+    with WidgetsBindingObserver {
+  bool Function()? _isLoading;
+  Future<void> Function()? _refreshDatasets;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      return;
+    }
+    if (_isLoading?.call() ?? true) {
+      return;
+    }
+    final refreshDatasets = _refreshDatasets;
+    if (refreshDatasets != null) {
+      Future<void>.microtask(refreshDatasets);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final loading = useState(false);
     final datasets = useState<List<ZfsDataset>>(<ZfsDataset>[]);
 
     final zfsService = ref.watch(zfsServiceProvider);
     final notifier = ref.read(serverListProvider.notifier);
+    final profile = widget.profile;
 
     void showStatusSnack(String message, {bool isError = false}) {
       if (!context.mounted) {
@@ -68,6 +104,8 @@ class ServerDetailScreen extends HookConsumerWidget {
         showStatusSnack('Dataset list refreshed.');
       });
     }
+    _isLoading = () => loading.value;
+    _refreshDatasets = refreshDatasets;
 
     Future<void> testConnection() {
       return withBusy(() async {
@@ -350,7 +388,7 @@ class ServerDetailScreen extends HookConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(profile.name),
+        title: Text(widget.profile.name),
         actions: [
           IconButton(
             tooltip: 'Test connection',
