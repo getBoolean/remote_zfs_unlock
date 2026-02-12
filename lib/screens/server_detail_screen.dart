@@ -11,6 +11,7 @@ import 'package:remote_zfs_unlock/models/unlock_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
 import 'package:remote_zfs_unlock/screens/create_dataset_dialog.dart';
+import 'package:remote_zfs_unlock/screens/lock_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
 import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
 import 'package:super_clipboard/super_clipboard.dart';
@@ -180,80 +181,48 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     }
 
     Future<void> lockDataset(ZfsDataset dataset) async {
-      final currentDataset = await showDialog<ZfsDataset>(
+      ZfsDataset? currentDataset;
+      final shouldLock = await showDialog<bool>(
         context: context,
-        builder: (dialogContext) {
-          var isSubmitting = false;
-          return StatefulBuilder(
-            builder: (context, setDialogState) => AlertDialog(
-              title: const Text('Lock dataset'),
-              content: Text('Unload key for `${dataset.name}`?'),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
-                          setDialogState(() => isSubmitting = true);
-                          final validatedDataset =
-                              await refreshAndValidateDatasetState(
-                                dataset: dataset,
-                                expectedMounted: true,
-                                expectedKeyLoaded: true,
-                                actionLabel: 'lock',
-                              );
-                          if (!context.mounted) {
-                            return;
-                          }
-                          setDialogState(() => isSubmitting = false);
-                          if (validatedDataset == null) {
-                            return;
-                          }
-                          Navigator.of(dialogContext).pop(validatedDataset);
-                        },
-                  child: isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Lock'),
-                ),
-              ],
-            ),
-          );
-        },
+        builder: (context) => LockDialog(
+          datasetName: dataset.name,
+          onSubmitValidation: () async {
+            currentDataset = await refreshAndValidateDatasetState(
+              dataset: dataset,
+              expectedMounted: true,
+              expectedKeyLoaded: true,
+              actionLabel: 'lock',
+            );
+            return currentDataset != null;
+          },
+        ),
       );
 
-      if (currentDataset == null) {
+      final lockedDataset = currentDataset;
+      if (shouldLock != true || lockedDataset == null) {
         return;
       }
 
       await withBusy(() async {
         final secrets = await readSecrets();
-        final isMounted = currentDataset.mounted.toLowerCase().trim() == 'yes';
+        final isMounted = lockedDataset.mounted.toLowerCase().trim() == 'yes';
         if (isMounted) {
           await zfsService.unmountDataset(
             profile: profile,
             secrets: secrets,
-            datasetName: currentDataset.name,
+            datasetName: lockedDataset.name,
           );
         }
         await zfsService.lockDataset(
           profile: profile,
           secrets: secrets,
-          datasetName: currentDataset.name,
+          datasetName: lockedDataset.name,
         );
         datasets.value = await fetchDatasets();
         showStatusSnack(
           isMounted
-              ? 'Unmounted and locked `${currentDataset.name}`.'
-              : 'Locked `${currentDataset.name}`.',
+              ? 'Unmounted and locked `${lockedDataset.name}`.'
+              : 'Locked `${lockedDataset.name}`.',
         );
       });
     }
