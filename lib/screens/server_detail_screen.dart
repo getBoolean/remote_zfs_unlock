@@ -11,6 +11,7 @@ import 'package:remote_zfs_unlock/models/unlock_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
 import 'package:remote_zfs_unlock/screens/create_dataset_dialog.dart';
+import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
 import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
@@ -61,10 +62,14 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     final visibleDatasetTypes = useState<Set<ZfsDatasetType>>({
       ZfsDatasetType.filesystem,
     });
+    final selectedSortField = useState<DatasetSortField>(
+      DatasetSortField.datasetName,
+    );
 
     final zfsService = ref.watch(zfsServiceProvider);
     final notifier = ref.read(serverListProvider.notifier);
     final profile = widget.profile;
+    final datasetSortKey = 'dataset_sort_${profile.id}';
 
     void showStatusSnack(String message, {bool isError = false}) {
       if (!context.mounted) {
@@ -484,9 +489,17 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       return null;
     }, const []);
 
+    useEffect(() {
+      selectedSortField.value = loadDatasetSortField(profileId: profile.id);
+      return null;
+    }, [datasetSortKey]);
+
     final filteredDatasets = datasets.value
         .where((dataset) => visibleDatasetTypes.value.contains(dataset.type))
         .toList();
+    filteredDatasets.sort(
+      (a, b) => compareDatasets(a, b, selectedSortField.value),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -501,6 +514,15 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
             tooltip: 'Create dataset',
             onPressed: loading.value ? null : createDataset,
             icon: const Icon(Icons.create_new_folder_outlined),
+          ),
+          DatasetSortButton(
+            selectedSortField: selectedSortField.value,
+            onSortChanged: (field) {
+              selectedSortField.value = field;
+              unawaited(
+                persistDatasetSortField(profileId: profile.id, field: field),
+              );
+            },
           ),
           IconButton(
             tooltip: 'Refresh datasets',
