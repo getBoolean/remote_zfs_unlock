@@ -35,6 +35,7 @@ class MainApp extends StatelessWidget {
     final futuristicDarkTheme = _buildFuturisticDarkTheme();
     return MaterialApp(
       title: 'Remote ZFS Unlock',
+      debugShowCheckedModeBanner: false,
       theme: futuristicDarkTheme,
       darkTheme: futuristicDarkTheme,
       themeMode: ThemeMode.dark,

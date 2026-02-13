@@ -7,6 +7,7 @@ class FuturisticOutlinedButton extends StatelessWidget {
     this.icon,
     this.accentColor,
     this.toneDownGlow = false,
+    this.borderRadius = 12,
     super.key,
   });
 
@@ -15,6 +16,7 @@ class FuturisticOutlinedButton extends StatelessWidget {
   final IconData? icon;
   final Color? accentColor;
   final bool toneDownGlow;
+  final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,9 @@ class FuturisticOutlinedButton extends StatelessWidget {
       backgroundColor: Colors.transparent,
       side: BorderSide.none,
       shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       textStyle: theme.textTheme.labelLarge?.copyWith(
         fontWeight: FontWeight.w700,
@@ -59,7 +63,7 @@ class FuturisticOutlinedButton extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(borderRadius),
         gradient: enabled
             ? LinearGradient(
                 colors: [

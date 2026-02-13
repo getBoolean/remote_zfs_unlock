@@ -6,6 +6,7 @@ import 'package:remote_zfs_unlock/models/server_secrets.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
 import 'package:remote_zfs_unlock/screens/server_detail_screen.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/server_form_dialog.dart';
 
 class ServerListScreen extends HookConsumerWidget {
@@ -46,6 +47,7 @@ class ServerListScreen extends HookConsumerWidget {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
+          scrollable: true,
           title: const Text('Delete server'),
           content: Text('Delete "${profile.name}" and all stored secrets?'),
           actions: [
@@ -78,10 +80,15 @@ class ServerListScreen extends HookConsumerWidget {
       ),
       floatingActionButton: !canAddServer
           ? null
-          : FloatingActionButton.extended(
-              onPressed: () => openForm(),
-              icon: const Icon(Icons.add),
-              label: const Text('Add server'),
+          : SizedBox(
+              height: 56,
+              child: FuturisticOutlinedButton(
+                onPressed: () => openForm(),
+                icon: Icons.add_rounded,
+                label: 'Add server',
+                accentColor: Theme.of(context).colorScheme.primary,
+                borderRadius: 20,
+              ),
             ),
       body: profilesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
