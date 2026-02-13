@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
 
 class DeleteDatasetDialog extends StatefulWidget {
   const DeleteDatasetDialog({required this.datasetName, super.key});
@@ -56,9 +57,8 @@ class _DeleteDatasetDialogState extends State<DeleteDatasetDialog> {
         },
       ),
       actions: [
-        TextButton(
+        FuturisticCancelButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
         ),
         ValueListenableBuilder<TextEditingValue>(
           valueListenable: _confirmationController,
@@ -69,7 +69,9 @@ class _DeleteDatasetDialogState extends State<DeleteDatasetDialog> {
                 backgroundColor: Theme.of(context).colorScheme.error,
                 foregroundColor: Theme.of(context).colorScheme.onError,
               ),
-              onPressed: isExactMatch ? () => Navigator.of(context).pop(true) : null,
+              onPressed: isExactMatch
+                  ? () => Navigator.of(context).pop(true)
+                  : null,
               child: const Text('Delete'),
             );
           },

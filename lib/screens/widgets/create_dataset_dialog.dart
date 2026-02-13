@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/keyfile_hex_or_upload_field.dart';
 
@@ -510,13 +511,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
         ),
       ),
       actions: [
-        FuturisticOutlinedButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: Icons.close_rounded,
-          label: 'Cancel',
-          toneDownGlow: true,
-          accentColor: scheme.error,
-        ),
+        FuturisticCancelButton(onPressed: () => Navigator.of(context).pop()),
         FuturisticOutlinedButton(
           onPressed: _submit,
           icon: Icons.add_rounded,

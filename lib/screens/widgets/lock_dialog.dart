@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 
 class LockDialog extends StatefulWidget {
@@ -24,9 +25,8 @@ class _LockDialogState extends State<LockDialog> {
       title: const Text('Lock dataset'),
       content: Text('Unload key for `${widget.datasetName}`?'),
       actions: [
-        TextButton(
+        FuturisticCancelButton(
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
         ),
         FuturisticOutlinedButton(
           onPressed: _isSubmitting ? null : _submit,

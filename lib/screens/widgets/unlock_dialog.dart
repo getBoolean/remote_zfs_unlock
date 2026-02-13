@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/keyfile_hex_or_upload_field.dart';
 
@@ -265,9 +266,8 @@ class _UnlockDialogState extends State<UnlockDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        FuturisticCancelButton(
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
         ),
         FuturisticOutlinedButton(
           onPressed: _isSubmitting ? null : _submit,

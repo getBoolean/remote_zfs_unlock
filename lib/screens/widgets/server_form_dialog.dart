@@ -5,13 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:remote_zfs_unlock/models/auth_mode.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
 import 'package:uuid/uuid.dart';
 
 class ServerFormResult {
-  const ServerFormResult({
-    required this.profile,
-    required this.secrets,
-  });
+  const ServerFormResult({required this.profile, required this.secrets});
 
   final ServerProfile profile;
   final ServerSecrets secrets;
@@ -53,7 +51,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
     _usernameController.text = profile?.username ?? '';
     _passwordController.text = widget.initialSecrets.password ?? '';
     _keyPemController.text = widget.initialSecrets.privateKeyPem ?? '';
-    _keyPassphraseController.text = widget.initialSecrets.privateKeyPassphrase ?? '';
+    _keyPassphraseController.text =
+        widget.initialSecrets.privateKeyPassphrase ?? '';
     _authMode = profile?.authMode ?? SshAuthMode.password;
   }
 
@@ -111,7 +110,9 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<SshAuthMode>(
                   initialValue: _authMode,
-                  decoration: const InputDecoration(labelText: 'Authentication'),
+                  decoration: const InputDecoration(
+                    labelText: 'Authentication',
+                  ),
                   items: const [
                     DropdownMenuItem(
                       value: SshAuthMode.password,
@@ -171,14 +172,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Save'),
-        ),
+        FuturisticCancelButton(onPressed: () => Navigator.of(context).pop()),
+        FilledButton(onPressed: _submit, child: const Text('Save')),
       ],
     );
   }
@@ -230,6 +225,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
                 : _keyPassphraseController.text,
           );
 
-    Navigator.of(context).pop(ServerFormResult(profile: profile, secrets: secrets));
+    Navigator.of(
+      context,
+    ).pop(ServerFormResult(profile: profile, secrets: secrets));
   }
 }
