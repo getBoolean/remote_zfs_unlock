@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -477,7 +478,7 @@ class _NoDatasetsBody extends StatelessWidget {
 typedef OnTapPropertyCallback =
     Future<void> Function({required String label, required String value});
 
-class _ServerDatasetTile extends StatelessWidget {
+class _ServerDatasetTile extends StatefulWidget {
   const _ServerDatasetTile({
     super.key,
     required this.dataset,
@@ -496,7 +497,47 @@ class _ServerDatasetTile extends StatelessWidget {
   final Future<void> Function(ZfsDataset dataset) onTapUnlock;
 
   @override
+  State<_ServerDatasetTile> createState() => _ServerDatasetTileState();
+}
+
+class _ServerDatasetTileState extends State<_ServerDatasetTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _stateChangeController;
+  bool _lastAnimatedToUnlocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _stateChangeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _ServerDatasetTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wasKeyLoaded = oldWidget.dataset.isEncrypted
+        ? oldWidget.dataset.isKeyLoaded
+        : null;
+    final isKeyLoaded = widget.dataset.isEncrypted
+        ? widget.dataset.isKeyLoaded
+        : null;
+    if (wasKeyLoaded != null && isKeyLoaded != null && wasKeyLoaded != isKeyLoaded) {
+      _lastAnimatedToUnlocked = isKeyLoaded;
+      _stateChangeController.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _stateChangeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final dataset = widget.dataset;
     final encryptedLabel = dataset.isEncrypted ? 'Encrypted' : 'Not encrypted';
     final isDatasetMounted = dataset.mounted.toLowerCase().trim() == 'yes';
     final typeLabel = _formatEnumName(dataset.type.name);
@@ -514,19 +555,93 @@ class _ServerDatasetTile extends StatelessWidget {
         ? const SizedBox.shrink()
         : dataset.isKeyLoaded
         ? FilledButton.tonalIcon(
-            onPressed: loadingNotifier.value ? null : () => onTapLock(dataset),
+            onPressed: widget.loadingNotifier.value
+                ? null
+                : () => widget.onTapLock(dataset),
             icon: const Icon(Icons.lock_outline),
             label: const Text('Lock'),
           )
         : FilledButton.icon(
-            onPressed: loadingNotifier.value
+            onPressed: widget.loadingNotifier.value
                 ? null
-                : () => onTapUnlock(dataset),
+                : () => widget.onTapUnlock(dataset),
             icon: const Icon(Icons.lock_open_outlined),
             label: const Text('Unlock'),
           );
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final unlockedFlashColor = colorScheme.primaryContainer;
+    final lockedFlashColor = colorScheme.errorContainer;
+
+    return AnimatedBuilder(
+      animation: _stateChangeController,
+      builder: (context, child) {
+        final progress = _stateChangeController.value;
+        final pulse = math.sin(progress * math.pi);
+        final overlayOpacity = pulse * 0.16;
+        final rippleRadius = 0.12 + (Curves.easeOut.transform(progress) * 1.25);
+        final rippleOpacity = pulse * 0.22;
+        final shimmerOpacity = pulse * 0.3;
+        final shimmerTravel = -1.4 + (Curves.easeInOut.transform(progress) * 2.8);
+        final flashColor = _lastAnimatedToUnlocked
+            ? unlockedFlashColor
+            : lockedFlashColor;
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          child: Stack(
+            children: [
+              child!,
+              if (overlayOpacity > 0)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: flashColor.withValues(alpha: overlayOpacity),
+                      ),
+                    ),
+                  ),
+                ),
+              if (rippleOpacity > 0)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: rippleRadius,
+                          colors: [
+                            flashColor.withValues(alpha: rippleOpacity),
+                            flashColor.withValues(alpha: 0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (shimmerOpacity > 0)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment(shimmerTravel, -1),
+                          end: Alignment(shimmerTravel + 1, 1),
+                          colors: [
+                            flashColor.withValues(alpha: 0),
+                            flashColor.withValues(alpha: shimmerOpacity),
+                            flashColor.withValues(alpha: 0),
+                          ],
+                          stops: const [0.15, 0.5, 0.85],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
         child: Column(
@@ -537,7 +652,7 @@ class _ServerDatasetTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     dataset.name,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: theme.textTheme.titleMedium,
                   ),
                 ),
                 Chip(
@@ -591,14 +706,16 @@ class _ServerDatasetTile extends StatelessWidget {
                   label: 'Type',
                   value: typeLabel,
                   icon: Icons.category_outlined,
-                  onPressed: () =>
-                      onTapProperty(label: 'Type', value: typeLabel),
+                  onPressed: () => widget.onTapProperty(
+                    label: 'Type',
+                    value: typeLabel,
+                  ),
                 ),
                 _DatasetPropertyChip(
                   label: 'Used',
                   value: _displayValue(dataset.usedByDataset),
                   icon: Icons.data_usage_outlined,
-                  onPressed: () => onTapProperty(
+                  onPressed: () => widget.onTapProperty(
                     label: 'Used',
                     value: _displayValue(dataset.usedByDataset),
                   ),
@@ -607,7 +724,7 @@ class _ServerDatasetTile extends StatelessWidget {
                   label: 'Available',
                   value: _displayValue(dataset.available),
                   icon: Icons.storage_outlined,
-                  onPressed: () => onTapProperty(
+                  onPressed: () => widget.onTapProperty(
                     label: 'Available',
                     value: _displayValue(dataset.available),
                   ),
@@ -616,7 +733,7 @@ class _ServerDatasetTile extends StatelessWidget {
                   label: 'Compression',
                   value: compressionLabel,
                   icon: Icons.compress_outlined,
-                  onPressed: () => onTapProperty(
+                  onPressed: () => widget.onTapProperty(
                     label: 'Compression',
                     value: compressionLabel,
                   ),
@@ -625,14 +742,16 @@ class _ServerDatasetTile extends StatelessWidget {
                   label: 'Dedup',
                   value: dedupLabel,
                   icon: Icons.copy_all_outlined,
-                  onPressed: () =>
-                      onTapProperty(label: 'Dedup', value: dedupLabel),
+                  onPressed: () => widget.onTapProperty(
+                    label: 'Dedup',
+                    value: dedupLabel,
+                  ),
                 ),
                 _DatasetPropertyChip(
                   label: 'Mountpoint',
                   value: _displayValue(dataset.mountPoint),
                   icon: Icons.folder_open_outlined,
-                  onPressed: () => onTapProperty(
+                  onPressed: () => widget.onTapProperty(
                     label: 'Mountpoint',
                     value: _displayValue(dataset.mountPoint),
                   ),
@@ -642,7 +761,7 @@ class _ServerDatasetTile extends StatelessWidget {
                     label: 'Key format',
                     value: keyFormatLabel,
                     icon: Icons.vpn_key_outlined,
-                    onPressed: () => onTapProperty(
+                    onPressed: () => widget.onTapProperty(
                       label: 'Key format',
                       value: keyFormatLabel,
                     ),
@@ -651,7 +770,7 @@ class _ServerDatasetTile extends StatelessWidget {
                     label: 'Key location',
                     value: _displayValue(dataset.keyLocation),
                     icon: Icons.location_on_outlined,
-                    onPressed: () => onTapProperty(
+                    onPressed: () => widget.onTapProperty(
                       label: 'Key location',
                       value: _displayValue(dataset.keyLocation),
                     ),
@@ -666,9 +785,9 @@ class _ServerDatasetTile extends StatelessWidget {
                 children: [
                   if (showDeleteButton)
                     FilledButton.tonalIcon(
-                      onPressed: loadingNotifier.value
+                      onPressed: widget.loadingNotifier.value
                           ? null
-                          : () => onTapDelete(dataset),
+                          : () => widget.onTapDelete(dataset),
                       icon: const Icon(Icons.delete_outline),
                       label: const Text('Delete'),
                     ),
