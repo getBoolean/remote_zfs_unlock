@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/4f3de1c5-6405-4d98-8581-29a93d84890c" alt="Flutter Logo" width="150"/>
+  <img src="docs/images/logo.png" alt="Remote ZFS Unlock Logo" width="150"/>
   
   # Remote ZFS Unlock
   
@@ -89,7 +89,7 @@ Security is a core principle of Remote ZFS Unlock:
 - 🔐 **Non-secret metadata** stored in local Hive database
 - 🔒 **Server credentials** (passwords/PEM keys) stored in platform secure storage
 - 🚫 **Dataset passphrases/keyfiles** are never stored locally
-- 👁️ **No secrets in logs** - The app avoids printing secrets in UI messages
+- 👁️ **No secrets in logs** - The app avoids printing secrets in logs and UI messages
 - 🔑 **Secure transfer** - ZFS keyfiles transmitted over encrypted SSH connection
 
 ---
