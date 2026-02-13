@@ -13,7 +13,10 @@ class SecureStorageService {
     required ServerSecrets secrets,
   }) async {
     await _writeNullable(_key(profileId, 'password'), secrets.password);
-    await _writeNullable(_key(profileId, 'privateKeyPem'), secrets.privateKeyPem);
+    await _writeNullable(
+      _key(profileId, 'privateKeyPem'),
+      secrets.privateKeyPem,
+    );
     await _writeNullable(
       _key(profileId, 'privateKeyPassphrase'),
       secrets.privateKeyPassphrase,
@@ -24,8 +27,9 @@ class SecureStorageService {
     return ServerSecrets(
       password: await _storage.read(key: _key(profileId, 'password')),
       privateKeyPem: await _storage.read(key: _key(profileId, 'privateKeyPem')),
-      privateKeyPassphrase:
-          await _storage.read(key: _key(profileId, 'privateKeyPassphrase')),
+      privateKeyPassphrase: await _storage.read(
+        key: _key(profileId, 'privateKeyPassphrase'),
+      ),
     );
   }
 

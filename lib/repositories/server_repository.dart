@@ -8,9 +8,14 @@ class ServerRepository {
 
   Future<List<ServerProfile>> readAll() async {
     final entries = _box.values
-        .map((value) => ServerProfileMapper.fromMap(Map<String, dynamic>.from(value)))
+        .map(
+          (value) =>
+              ServerProfileMapper.fromMap(Map<String, dynamic>.from(value)),
+        )
         .toList();
-    entries.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    entries.sort(
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    );
     return entries;
   }
 

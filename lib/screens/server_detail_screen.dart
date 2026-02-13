@@ -2,15 +2,14 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:hive_ce/hive.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
 import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
+import 'package:remote_zfs_unlock/providers/server_detail_ui_state_provider.dart';
 import 'package:remote_zfs_unlock/screens/widgets/create_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/delete_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/lock_dialog.dart';
@@ -18,7 +17,7 @@ import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/unlock_dialog.dart';
 
-class ServerDetailScreen extends StatefulHookConsumerWidget {
+class ServerDetailScreen extends ConsumerStatefulWidget {
   const ServerDetailScreen({required this.profile, super.key});
 
   final ServerProfile profile;
@@ -31,6 +30,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     with WidgetsBindingObserver {
   bool Function()? _isLoading;
   Future<void> Function()? _refreshDatasets;
+  bool _didScheduleInitialRefresh = false;
 
   @override
   void initState() {
@@ -60,24 +60,15 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final loading = useState(false);
-    final datasets = useState<List<ZfsDataset>>(<ZfsDataset>[]);
-    final visibleDatasetTypes = useState<Set<ZfsDatasetType>>({
-      ZfsDatasetType.filesystem,
-    });
-    final selectedSortField = useState<DatasetSortField>(
-      DatasetSortField.datasetName,
-    );
-    final sortDirection = useState<DatasetSortDirection>(
-      DatasetSortDirection.ascending,
-    );
-
     final zfsService = ref.watch(zfsServiceProvider);
     final lockUnlockHelper = ref.watch(datasetLockUnlockHelperProvider);
     final clipboardService = ref.watch(clipboardServiceProvider);
     final notifier = ref.read(serverListProvider.notifier);
     final profile = widget.profile;
-    final datasetSortKey = 'dataset_sort_${profile.id}';
+    final uiState = ref.watch(serverDetailUiStateProvider(profile.id));
+    final uiNotifier = ref.read(
+      serverDetailUiStateProvider(profile.id).notifier,
+    );
 
     void showStatusSnack(String message, {bool isError = false}) {
       if (!context.mounted) {
@@ -98,15 +89,10 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     }
 
     Future<void> withBusy(Future<void> Function() action) async {
-      loading.value = true;
       try {
-        await action();
+        await uiNotifier.runBusy(action);
       } catch (error) {
         showStatusSnack('$error', isError: true);
-      } finally {
-        if (context.mounted) {
-          loading.value = false;
-        }
       }
     }
 
@@ -119,7 +105,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
 
     Future<void> refreshDatasets() {
       return withBusy(() async {
-        datasets.value = await fetchDatasets();
+        uiNotifier.setDatasets(await fetchDatasets());
       });
     }
 
@@ -127,19 +113,17 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       required ZfsDataset dataset,
       required bool expectedKeyLoaded,
     }) async {
-      while (loading.value && context.mounted) {
+      while (ref.read(serverDetailUiStateProvider(profile.id)).loading &&
+          context.mounted) {
         await Future<void>.delayed(const Duration(milliseconds: 50));
       }
       if (!context.mounted) {
         return null;
       }
-      ZfsDataset? latestDataset;
-      for (final candidate in datasets.value) {
-        if (candidate.name == dataset.name) {
-          latestDataset = candidate;
-          break;
-        }
-      }
+      final latestDataset = uiNotifier.findDatasetByNameAndKeyLoaded(
+        datasetName: dataset.name,
+        expectedKeyLoaded: expectedKeyLoaded,
+      );
       if (latestDataset == null ||
           latestDataset.isKeyLoaded != expectedKeyLoaded) {
         return null;
@@ -147,8 +131,14 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       return latestDataset;
     }
 
-    _isLoading = () => loading.value;
+    _isLoading = () =>
+        ref.read(serverDetailUiStateProvider(profile.id)).loading;
     _refreshDatasets = refreshDatasets;
+
+    if (!_didScheduleInitialRefresh) {
+      _didScheduleInitialRefresh = true;
+      Future<void>.microtask(refreshDatasets);
+    }
 
     Future<void> testConnection() {
       return withBusy(() async {
@@ -162,9 +152,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     }
 
     Future<void> waitForLoadingToFinish() async {
-      while (loading.value && context.mounted) {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      }
+      await uiNotifier.waitForIdle();
     }
 
     Future<void> waitThenTestConnection() async {
@@ -234,7 +222,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           readSecrets: readSecrets,
           dataset: lockedDataset,
         );
-        datasets.value = result.datasets;
+        uiNotifier.setDatasets(result.datasets);
       });
     }
 
@@ -313,13 +301,13 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           dataset: currentDataset!,
           request: request,
         );
-        datasets.value = result.datasets;
+        uiNotifier.setDatasets(result.datasets);
       });
     }
 
     Future<void> createDataset() async {
       final parentDatasets =
-          datasets.value
+          uiState.datasets
               .map((dataset) => dataset.name.trim())
               .where((name) => name.isNotEmpty)
               .toSet()
@@ -358,7 +346,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           secrets: secrets,
           request: request,
         );
-        datasets.value = await fetchDatasets();
+        uiNotifier.setDatasets(await fetchDatasets());
         showStatusSnack(
           'Created `${request.parentDataset}/${request.datasetName}`.',
         );
@@ -389,7 +377,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           secrets: secrets,
           datasetName: dataset.name,
         );
-        datasets.value = await fetchDatasets();
+        uiNotifier.setDatasets(await fetchDatasets());
         showStatusSnack('Deleted `${dataset.name}`.');
       });
     }
@@ -402,56 +390,41 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       await deleteDataset(dataset);
     }
 
-    useEffect(() {
-      Future<void>.microtask(refreshDatasets);
-      return null;
-    }, const []);
-
-    useEffect(() {
-      selectedSortField.value = loadDatasetSortField(profileId: profile.id);
-      sortDirection.value = loadDatasetSortDirection(profileId: profile.id);
-      return null;
-    }, [datasetSortKey]);
-
-    final filteredDatasets = datasets.value
-        .where((dataset) => visibleDatasetTypes.value.contains(dataset.type))
-        .toList();
-    filteredDatasets.sort(
-      (a, b) => compareDatasets(
-        a,
-        b,
-        selectedSortField.value,
-        direction: sortDirection.value,
-      ),
-    );
+    final filteredDatasets = uiState.filteredDatasets;
 
     return Scaffold(
       appBar: _ServerDetailNavBar(
-        loading: loading,
-        selectedSortField: selectedSortField,
+        loading: uiState.loading,
+        selectedSortField: uiState.selectedSortField,
         profile: profile,
-        sortDirection: sortDirection,
+        sortDirection: uiState.sortDirection,
         testConnection: waitThenTestConnection,
         createDataset: waitThenCreateDataset,
         refreshDatasets: refreshDatasets,
+        onSortChanged: (field) {
+          unawaited(uiNotifier.setSortField(field));
+        },
+        onDirectionChanged: (direction) {
+          unawaited(uiNotifier.setSortDirection(direction));
+        },
       ),
       body: Stack(
         children: [
           Positioned.fill(
-            child: datasets.value.isEmpty
+            child: uiState.datasets.isEmpty
                 ? const _NoDatasetsBody()
                 : _DatasetsBody(
                     filteredDatasets: filteredDatasets,
-                    profile: profile,
-                    visibleDatasetTypes: visibleDatasetTypes,
-                    loading: loading,
+                    selectedDatasetTypes: uiState.visibleDatasetTypes,
                     onTapDatasetProperty: copyPropertyToClipboard,
                     onTapDeleteDataset: waitThenDeleteDataset,
                     onTapLockDataset: lockDataset,
                     onTapUnlockDataset: unlockDataset,
+                    onDatasetTypeSelectionChanged:
+                        uiNotifier.setVisibleDatasetTypes,
                   ),
           ),
-          if (loading.value)
+          if (uiState.loading)
             const Positioned(
               top: 0,
               left: 0,
@@ -467,23 +440,22 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
 class _DatasetsBody extends StatelessWidget {
   const _DatasetsBody({
     required this.filteredDatasets,
-    required this.profile,
-    required this.visibleDatasetTypes,
-    required this.loading,
+    required this.selectedDatasetTypes,
     required this.onTapDatasetProperty,
     required this.onTapDeleteDataset,
     required this.onTapLockDataset,
     required this.onTapUnlockDataset,
+    required this.onDatasetTypeSelectionChanged,
   });
 
   final List<ZfsDataset> filteredDatasets;
-  final ServerProfile profile;
-  final ValueNotifier<Set<ZfsDatasetType>> visibleDatasetTypes;
-  final ValueNotifier<bool> loading;
+  final Set<ZfsDatasetType> selectedDatasetTypes;
   final OnTapPropertyCallback onTapDatasetProperty;
   final Future<void> Function(ZfsDataset dataset) onTapDeleteDataset;
   final Future<void> Function(ZfsDataset dataset) onTapLockDataset;
   final Future<void> Function(ZfsDataset dataset) onTapUnlockDataset;
+  final void Function(Set<ZfsDatasetType> selectedTypes)
+  onDatasetTypeSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -493,10 +465,8 @@ class _DatasetsBody extends StatelessWidget {
       itemBuilder: (context, index) {
         if (index == 0) {
           return _DatasetTypeFilterChips(
-            profileId: profile.id,
-            onSelectionChanged: (selectedTypes) {
-              visibleDatasetTypes.value = selectedTypes;
-            },
+            selectedTypes: selectedDatasetTypes,
+            onSelectionChanged: onDatasetTypeSelectionChanged,
           );
         }
         if (filteredDatasets.isEmpty) {
@@ -938,15 +908,19 @@ class _ServerDetailNavBar extends StatelessWidget
     required this.loading,
     required this.selectedSortField,
     required this.sortDirection,
+    required this.onSortChanged,
+    required this.onDirectionChanged,
     required this.testConnection,
     required this.createDataset,
     required this.refreshDatasets,
   });
 
   final ServerProfile profile;
-  final ValueNotifier<bool> loading;
-  final ValueNotifier<DatasetSortField> selectedSortField;
-  final ValueNotifier<DatasetSortDirection> sortDirection;
+  final bool loading;
+  final DatasetSortField selectedSortField;
+  final DatasetSortDirection sortDirection;
+  final void Function(DatasetSortField field) onSortChanged;
+  final void Function(DatasetSortDirection direction) onDirectionChanged;
   final Future<void> Function() testConnection;
   final Future<void> Function() createDataset;
   final Future<void> Function() refreshDatasets;
@@ -970,34 +944,16 @@ class _ServerDetailNavBar extends StatelessWidget
           icon: const Icon(Icons.create_new_folder_outlined),
         ),
         DatasetSortButton(
-          selectedSortField: selectedSortField.value,
-          onSortChanged: (field) {
-            selectedSortField.value = field;
-            unawaited(
-              persistDatasetSortSettings(
-                profileId: profile.id,
-                field: field,
-                direction: sortDirection.value,
-              ),
-            );
-          },
+          selectedSortField: selectedSortField,
+          onSortChanged: onSortChanged,
         ),
         DatasetSortDirectionButton(
-          direction: sortDirection.value,
-          onDirectionChanged: (direction) {
-            sortDirection.value = direction;
-            unawaited(
-              persistDatasetSortSettings(
-                profileId: profile.id,
-                field: selectedSortField.value,
-                direction: direction,
-              ),
-            );
-          },
+          direction: sortDirection,
+          onDirectionChanged: onDirectionChanged,
         ),
         IconButton(
           tooltip: 'Refresh datasets',
-          onPressed: loading.value ? null : refreshDatasets,
+          onPressed: loading ? null : refreshDatasets,
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -1029,64 +985,19 @@ class _DatasetPropertyChip extends StatelessWidget {
   }
 }
 
-class _DatasetTypeFilterChips extends HookWidget {
+class _DatasetTypeFilterChips extends StatelessWidget {
   const _DatasetTypeFilterChips({
-    required this.profileId,
+    required this.selectedTypes,
     required this.onSelectionChanged,
   });
 
-  final String profileId;
+  final Set<ZfsDatasetType> selectedTypes;
   final void Function(Set<ZfsDatasetType> selectedTypes) onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
-    final selectedTypes = useState<Set<ZfsDatasetType>>({
-      ZfsDatasetType.filesystem,
-    });
-    final uiPreferencesBox = Hive.box<List<dynamic>>(uiPreferencesBoxName);
-    final datasetTypeFilterKey = 'dataset_type_filter_$profileId';
-
-    Set<ZfsDatasetType> decodeSelectedTypes(List<dynamic>? encoded) {
-      final decoded = <ZfsDatasetType>{};
-      if (encoded != null) {
-        for (final raw in encoded) {
-          if (raw is! String) {
-            continue;
-          }
-          for (final candidate in ZfsDatasetType.values) {
-            if (candidate.name == raw) {
-              decoded.add(candidate);
-              break;
-            }
-          }
-        }
-      }
-      if (decoded.isEmpty) {
-        decoded.add(ZfsDatasetType.filesystem);
-      }
-      return decoded;
-    }
-
-    void persistSelectedTypes(Set<ZfsDatasetType> types) {
-      final encoded = types.map((type) => type.name).toList()..sort();
-      unawaited(uiPreferencesBox.put(datasetTypeFilterKey, encoded));
-    }
-
-    void notifyParentSelectionChanged(
-      Set<ZfsDatasetType> types, {
-      bool postFrame = false,
-    }) {
-      if (!postFrame) {
-        onSelectionChanged(types);
-        return;
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        onSelectionChanged(types);
-      });
-    }
-
     void updateTypeSelection(ZfsDatasetType type, bool shouldSelect) {
-      final next = <ZfsDatasetType>{...selectedTypes.value};
+      final next = <ZfsDatasetType>{...selectedTypes};
       if (shouldSelect) {
         next.add(type);
       } else {
@@ -1095,19 +1006,8 @@ class _DatasetTypeFilterChips extends HookWidget {
       if (next.isEmpty) {
         next.add(ZfsDatasetType.filesystem);
       }
-      selectedTypes.value = next;
-      notifyParentSelectionChanged(next);
-      persistSelectedTypes(next);
+      onSelectionChanged(next);
     }
-
-    useEffect(() {
-      final decoded = decodeSelectedTypes(
-        uiPreferencesBox.get(datasetTypeFilterKey),
-      );
-      selectedTypes.value = decoded;
-      notifyParentSelectionChanged(decoded, postFrame: true);
-      return null;
-    }, [datasetTypeFilterKey]);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -1122,7 +1022,7 @@ class _DatasetTypeFilterChips extends HookWidget {
             ))
               FilterChip(
                 label: Text(_formatEnumName(type.name)),
-                selected: selectedTypes.value.contains(type),
+                selected: selectedTypes.contains(type),
                 onSelected: (selected) => updateTypeSelection(type, selected),
               ),
           ],

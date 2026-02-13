@@ -7,9 +7,7 @@ import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/services/zfs_service.dart';
 
 class DatasetActionResult {
-  const DatasetActionResult({
-    required this.datasets,
-  });
+  const DatasetActionResult({required this.datasets});
 
   final List<ZfsDataset> datasets;
 }
@@ -51,13 +49,17 @@ class DatasetLockUnlockHelper {
     required bool expectedMounted,
     required bool expectedKeyLoaded,
   }) async {
-    final datasets = await _listDatasets(profile: profile, readSecrets: readSecrets);
+    final datasets = await _listDatasets(
+      profile: profile,
+      readSecrets: readSecrets,
+    );
     for (final item in datasets) {
       if (item.name != dataset.name) {
         continue;
       }
       final isMounted = item.mounted.toLowerCase().trim() == 'yes';
-      if (isMounted != expectedMounted || item.isKeyLoaded != expectedKeyLoaded) {
+      if (isMounted != expectedMounted ||
+          item.isKeyLoaded != expectedKeyLoaded) {
         return null;
       }
       return item;
@@ -84,10 +86,11 @@ class DatasetLockUnlockHelper {
       secrets: secrets,
       datasetName: dataset.name,
     );
-    final datasets = await _zfsService.listDatasets(profile: profile, secrets: secrets);
-    return DatasetActionResult(
-      datasets: datasets,
+    final datasets = await _zfsService.listDatasets(
+      profile: profile,
+      secrets: secrets,
     );
+    return DatasetActionResult(datasets: datasets);
   }
 
   Future<DatasetActionResult> unlockDataset({
@@ -110,7 +113,10 @@ class DatasetLockUnlockHelper {
         datasetName: dataset.name,
       );
     }
-    var datasets = await _zfsService.listDatasets(profile: profile, secrets: secrets);
+    var datasets = await _zfsService.listDatasets(
+      profile: profile,
+      secrets: secrets,
+    );
     final hasNestedFilesystem = datasets.any(
       (candidate) =>
           candidate.type == ZfsDatasetType.filesystem &&
@@ -119,11 +125,12 @@ class DatasetLockUnlockHelper {
     if (hasNestedFilesystem) {
       // Child datasets can mount shortly after the parent unlock/mount completes.
       await Future<void>.delayed(const Duration(milliseconds: 1500));
-      datasets = await _zfsService.listDatasets(profile: profile, secrets: secrets);
+      datasets = await _zfsService.listDatasets(
+        profile: profile,
+        secrets: secrets,
+      );
     }
-    return DatasetActionResult(
-      datasets: datasets,
-    );
+    return DatasetActionResult(datasets: datasets);
   }
 
   Future<List<ZfsDataset>> _listDatasets({
