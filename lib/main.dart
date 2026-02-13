@@ -167,10 +167,78 @@ ThemeData _buildFuturisticDarkTheme() {
         borderSide: BorderSide(color: scheme.secondary.withValues(alpha: 0.8)),
       ),
     ),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF0A162A),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: scheme.secondary.withValues(alpha: 0.6),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: scheme.secondary.withValues(alpha: 0.6),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: scheme.secondary.withValues(alpha: 0.85),
+            width: 1.2,
+          ),
+        ),
+      ),
+      menuStyle: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(const Color(0xFF0A162A)),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shadowColor: WidgetStatePropertyAll(
+          scheme.secondary.withValues(alpha: 0.2),
+        ),
+        elevation: const WidgetStatePropertyAll(14),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: scheme.secondary.withValues(alpha: 0.65),
+              width: 1.1,
+            ),
+          ),
+        ),
+      ),
+      textStyle: const TextStyle(
+        color: Color(0xFFEAF5FF),
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.2,
+      ),
+    ),
     dialogTheme: DialogThemeData(
-      backgroundColor: scheme.surface.withValues(alpha: 0.96),
+      backgroundColor: const Color(0xFF0B1324),
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: scheme.secondary.withValues(alpha: 0.72),
+          width: 1.2,
+        ),
+      ),
+      elevation: 16,
+      shadowColor: scheme.secondary.withValues(alpha: 0.22),
+      titleTextStyle: TextStyle(
+        color: const Color(0xFFF2F8FF),
+        fontSize: 22,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.35,
+      ),
+      contentTextStyle: TextStyle(
+        color: scheme.onSurface.withValues(alpha: 0.93),
+        fontSize: 14.5,
+        height: 1.35,
+        letterSpacing: 0.15,
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
     ),
     dividerTheme: DividerThemeData(
       color: scheme.outlineVariant.withValues(alpha: 0.75),

@@ -108,6 +108,14 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    const dropdownMenuColor = Color.fromARGB(255, 17, 35, 58);
+    const dropdownTextStyle = TextStyle(
+      color: Color(0xFFEAF5FF),
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.2,
+    );
+
     return AlertDialog(
       title: const Text('Create dataset'),
       content: SizedBox(
@@ -121,6 +129,11 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
               DropdownButtonFormField<String>(
                 initialValue: _selectedParent,
                 isExpanded: true,
+                dropdownColor: dropdownMenuColor,
+                style: dropdownTextStyle,
+                iconEnabledColor: scheme.primary,
+                borderRadius: BorderRadius.circular(14),
+                menuMaxHeight: 360,
                 decoration: const InputDecoration(labelText: 'Parent dataset'),
                 items: widget.parentDatasets
                     .map(
@@ -156,6 +169,11 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
               const SizedBox(height: 8),
               DropdownButtonFormField<ZfsCompressionType?>(
                 initialValue: _compressionType,
+                dropdownColor: dropdownMenuColor,
+                style: dropdownTextStyle,
+                iconEnabledColor: scheme.primary,
+                borderRadius: BorderRadius.circular(14),
+                menuMaxHeight: 360,
                 decoration: const InputDecoration(labelText: 'Compression'),
                 items: const [
                   DropdownMenuItem<ZfsCompressionType?>(
@@ -285,6 +303,11 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   const SizedBox(height: 8),
                   DropdownButtonFormField<CreateDatasetEncryptionType>(
                     initialValue: _keyFileEncryptionType,
+                    dropdownColor: dropdownMenuColor,
+                    style: dropdownTextStyle,
+                    iconEnabledColor: scheme.primary,
+                    borderRadius: BorderRadius.circular(14),
+                    menuMaxHeight: 360,
                     decoration: const InputDecoration(
                       labelText: 'Encryption type',
                     ),
