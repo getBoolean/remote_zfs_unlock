@@ -122,6 +122,29 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       });
     }
 
+    Future<ZfsDataset?> waitForDatasetLockState({
+      required ZfsDataset dataset,
+      required bool expectedKeyLoaded,
+    }) async {
+      while (loading.value && context.mounted) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      if (!context.mounted) {
+        return null;
+      }
+      ZfsDataset? latestDataset;
+      for (final candidate in datasets.value) {
+        if (candidate.name == dataset.name) {
+          latestDataset = candidate;
+          break;
+        }
+      }
+      if (latestDataset == null || latestDataset.isKeyLoaded != expectedKeyLoaded) {
+        return null;
+      }
+      return latestDataset;
+    }
+
     _isLoading = () => loading.value;
     _refreshDatasets = refreshDatasets;
 
@@ -149,23 +172,30 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     }
 
     Future<void> lockDataset(ZfsDataset dataset) async {
+      final latestDataset = await waitForDatasetLockState(
+        dataset: dataset,
+        expectedKeyLoaded: true,
+      );
+      if (latestDataset == null) {
+        return;
+      }
       ZfsDataset? currentDataset;
       final shouldLock = await showDialog<bool>(
         context: context,
         builder: (context) => LockDialog(
-          datasetName: dataset.name,
+          datasetName: latestDataset.name,
           onSubmitValidation: () async {
             currentDataset = await lockUnlockHelper
                 .refreshAndValidateDatasetState(
                   profile: profile,
                   readSecrets: readSecrets,
-                  dataset: dataset,
+                  dataset: latestDataset,
                   expectedMounted: true,
                   expectedKeyLoaded: true,
                 );
             if (currentDataset == null && context.mounted) {
               showStatusSnack(
-                '`${dataset.name}` is no longer in a lockable state.',
+                '`${latestDataset.name}` is no longer in a lockable state.',
                 isError: true,
               );
             }
@@ -191,19 +221,26 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
     }
 
     Future<void> unlockDataset(ZfsDataset dataset) async {
+      final latestDataset = await waitForDatasetLockState(
+        dataset: dataset,
+        expectedKeyLoaded: false,
+      );
+      if (latestDataset == null) {
+        return;
+      }
       ZfsDataset? currentDataset;
 
-      final allowedMethod = lockUnlockHelper.resolveUnlockMethod(dataset);
+      final allowedMethod = lockUnlockHelper.resolveUnlockMethod(latestDataset);
       if (allowedMethod == null) {
         showStatusSnack(
-          'Unable to determine unlock key type for `${dataset.name}`.',
+          'Unable to determine unlock key type for `${latestDataset.name}`.',
           isError: true,
         );
         return;
       }
 
       final initialServerKeyFilePath = allowedMethod == UnlockMethod.keyFile
-          ? lockUnlockHelper.initialServerKeyFilePath(dataset)
+          ? lockUnlockHelper.initialServerKeyFilePath(latestDataset)
           : null;
 
       final request = await showDialog<UnlockRequest>(
@@ -216,13 +253,13 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
                 .refreshAndValidateDatasetState(
                   profile: profile,
                   readSecrets: readSecrets,
-                  dataset: dataset,
+                  dataset: latestDataset,
                   expectedMounted: false,
                   expectedKeyLoaded: false,
                 );
             if (currentDataset == null && context.mounted) {
               showStatusSnack(
-                '`${dataset.name}` is no longer in an unlockable state.',
+                '`${latestDataset.name}` is no longer in an unlockable state.',
                 isError: true,
               );
             }
@@ -563,16 +600,12 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
         ? const SizedBox.shrink()
         : dataset.isKeyLoaded
         ? FilledButton.tonalIcon(
-            onPressed: widget.loadingNotifier.value
-                ? null
-                : () => widget.onTapLock(dataset),
+            onPressed: () => widget.onTapLock(dataset),
             icon: const Icon(Icons.lock_outline),
             label: const Text('Lock'),
           )
         : FilledButton.icon(
-            onPressed: widget.loadingNotifier.value
-                ? null
-                : () => widget.onTapUnlock(dataset),
+            onPressed: () => widget.onTapUnlock(dataset),
             icon: const Icon(Icons.lock_open_outlined),
             label: const Text('Unlock'),
           );
