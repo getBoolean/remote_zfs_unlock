@@ -157,7 +157,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           profile: profile,
           secrets: secrets,
         );
-        showStatusSnack(output.trim().isEmpty ? 'Connected.' : output.trim());
+        showStatusSnack(output.trim().isEmpty ? 'Connected' : output.trim());
       });
     }
 

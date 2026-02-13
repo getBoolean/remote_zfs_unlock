@@ -20,7 +20,7 @@ class ZfsService {
     return _sshService.runCommand(
       profile: profile,
       secrets: secrets,
-      command: "echo 'connected'",
+      command: "echo 'Connected'",
     );
   }
 
