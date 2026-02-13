@@ -229,54 +229,6 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                 },
               ),
               if (_encryptionMethod != _CreateEncryptionMethod.none) ...[
-                const SizedBox(height: 8),
-                DropdownButtonFormField<CreateDatasetEncryptionType>(
-                  initialValue: _keyFileEncryptionType,
-                  dropdownColor: dropdownMenuColor,
-                  style: dropdownTextStyle,
-                  iconEnabledColor: scheme.primary,
-                  borderRadius: BorderRadius.circular(14),
-                  menuMaxHeight: 360,
-                  decoration: const InputDecoration(
-                    labelText: 'Encryption type',
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: CreateDatasetEncryptionType.on,
-                      child: Text('Default'),
-                    ),
-                    DropdownMenuItem(
-                      value: CreateDatasetEncryptionType.aes128Ccm,
-                      child: Text('AES-128-CCM'),
-                    ),
-                    DropdownMenuItem(
-                      value: CreateDatasetEncryptionType.aes192Ccm,
-                      child: Text('AES-192-CCM'),
-                    ),
-                    DropdownMenuItem(
-                      value: CreateDatasetEncryptionType.aes256Ccm,
-                      child: Text('AES-256-CCM'),
-                    ),
-                    DropdownMenuItem(
-                      value: CreateDatasetEncryptionType.aes128Gcm,
-                      child: Text('AES-128-GCM'),
-                    ),
-                    DropdownMenuItem(
-                      value: CreateDatasetEncryptionType.aes192Gcm,
-                      child: Text('AES-192-GCM'),
-                    ),
-                    DropdownMenuItem(
-                      value: CreateDatasetEncryptionType.aes256Gcm,
-                      child: Text('AES-256-GCM'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() => _keyFileEncryptionType = value);
-                  },
-                ),
                 if (_encryptionMethod ==
                     _CreateEncryptionMethod.passphrase) ...[
                   const SizedBox(height: 8),
@@ -505,6 +457,54 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                     },
                   ),
                 ],
+                const SizedBox(height: 8),
+                DropdownButtonFormField<CreateDatasetEncryptionType>(
+                  initialValue: _keyFileEncryptionType,
+                  dropdownColor: dropdownMenuColor,
+                  style: dropdownTextStyle,
+                  iconEnabledColor: scheme.primary,
+                  borderRadius: BorderRadius.circular(14),
+                  menuMaxHeight: 360,
+                  decoration: const InputDecoration(
+                    labelText: 'Encryption type',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.on,
+                      child: Text('Default'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes128Ccm,
+                      child: Text('AES-128-CCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes192Ccm,
+                      child: Text('AES-192-CCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes256Ccm,
+                      child: Text('AES-256-CCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes128Gcm,
+                      child: Text('AES-128-GCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes192Gcm,
+                      child: Text('AES-192-GCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes256Gcm,
+                      child: Text('AES-256-GCM'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() => _keyFileEncryptionType = value);
+                  },
+                ),
               ],
             ],
           ),
