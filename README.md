@@ -30,18 +30,10 @@ Remote ZFS Unlock provides a seamless interface for managing encrypted ZFS datas
   - Passphrase
   - Uploaded keyfile
   - Path to keyfile on remote server
-- 🔒 **Lock datasets** - Securely unload keys to lock encrypted datasets
+- 🔒 **Lock datasets** - Unmount and unload keys to lock encrypted datasets
 - ➕ **Create new datasets** - Set up encrypted datasets with passphrase or keyfile encryption
 - 🔐 **Secure authentication** - Connect via SSH using password or private key
 - 🛡️ **Security-first** - Credentials stored in platform secure storage, no dataset keys retained
-
----
-
-## 🚀 Demo
-
-Try the live demo at [https://getboolean.github.io/remote_zfs_unlock/main](https://getboolean.github.io/remote_zfs_unlock/main)
-
-> ⚠️ **Note:** SSH is currently not functioning on Web. Download a native app for full functionality.
 
 ---
 
@@ -65,6 +57,14 @@ Try the live demo at [https://getboolean.github.io/remote_zfs_unlock/main](https
      - Upload keyfile from your device
      - Specify path to keyfile on remote server
    - Click **Lock** to unmount and unload keys
+
+---
+
+## 🚀 Demo
+
+Try the live demo at [https://getboolean.github.io/remote_zfs_unlock/main](https://getboolean.github.io/remote_zfs_unlock/main)
+
+> ⚠️ **Note:** SSH is currently not functioning on Web. For full functionality, please download a native app from the [releases page](https://github.com/getBoolean/remote_zfs_unlock/releases/latest).
 
 ---
 
