@@ -105,7 +105,7 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
       await action().timeout(_operationTimeout);
     } on TimeoutException {
       if (kDebugMode) {
-        print('runBusy: Action timed out after ${_operationTimeout.inSeconds} seconds');
+        debugPrint('runBusy: Action timed out after ${_operationTimeout.inSeconds} seconds');
       }
       // Loading state will still be set to false in the finally block
     } finally {
@@ -142,7 +142,7 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
       await completer.future.timeout(_operationTimeout);
     } on TimeoutException {
       if (kDebugMode) {
-        print('waitForIdle: Timeout after ${_operationTimeout.inSeconds} seconds - loading state did not change to false');
+        debugPrint('waitForIdle: Timeout after ${_operationTimeout.inSeconds} seconds - loading state did not change to false');
       }
       // This is expected behavior to prevent indefinite hanging
     } finally {
