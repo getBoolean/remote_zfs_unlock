@@ -91,6 +91,8 @@ Set<ZfsDatasetType> _decodeSelectedTypes(List<dynamic>? encoded) {
 
 @riverpod
 class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
+  static const _operationTimeout = Duration(seconds: 10);
+
   @override
   ServerDetailUiState build(String profileId) {
     return ServerDetailUiState.initial(profileId: profileId);
@@ -99,7 +101,7 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
   Future<void> runBusy(Future<void> Function() action) async {
     state = state.copyWith(loading: true);
     try {
-      await action().timeout(const Duration(seconds: 10));
+      await action().timeout(_operationTimeout);
     } on TimeoutException {
       // Action timed out after 10 seconds
       // Loading state will still be set to false in the finally block
@@ -134,7 +136,7 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
       }
     });
     try {
-      await completer.future.timeout(const Duration(seconds: 10));
+      await completer.future.timeout(_operationTimeout);
     } on TimeoutException {
       // Timeout occurred - loading state did not change to false within 10 seconds
       // This is expected behavior to prevent indefinite hanging
