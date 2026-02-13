@@ -132,6 +132,9 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
     });
     try {
       await completer.future.timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      // Timeout occurred - loading state did not change to false within 10 seconds
+      // This is expected behavior to prevent indefinite hanging
     } finally {
       removeListener();
     }
