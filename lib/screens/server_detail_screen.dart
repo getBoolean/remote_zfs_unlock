@@ -196,6 +196,9 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         return;
       }
       ZfsDataset? currentDataset;
+      if (!context.mounted) {
+        return;
+      }
       final shouldLock = await showDialog<bool>(
         context: context,
         builder: (context) => LockDialog(
@@ -258,6 +261,9 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           ? lockUnlockHelper.initialServerKeyFilePath(latestDataset)
           : null;
 
+      if (!context.mounted) {
+        return;
+      }
       final request = await showDialog<UnlockRequest>(
         context: context,
         builder: (context) => UnlockDialog(
@@ -388,6 +394,14 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       });
     }
 
+    Future<void> waitThenDeleteDataset(ZfsDataset dataset) async {
+      await waitForLoadingToFinish();
+      if (!context.mounted) {
+        return;
+      }
+      await deleteDataset(dataset);
+    }
+
     useEffect(() {
       Future<void>.microtask(refreshDatasets);
       return null;
@@ -432,7 +446,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
                     visibleDatasetTypes: visibleDatasetTypes,
                     loading: loading,
                     onTapDatasetProperty: copyPropertyToClipboard,
-                    onTapDeleteDataset: deleteDataset,
+                    onTapDeleteDataset: waitThenDeleteDataset,
                     onTapLockDataset: lockDataset,
                     onTapUnlockDataset: unlockDataset,
                   ),
@@ -505,7 +519,6 @@ class _DatasetsBody extends StatelessWidget {
         return _ServerDatasetTile(
           key: ValueKey(dataset.name),
           dataset: dataset,
-          loadingNotifier: loading,
           onTapProperty: onTapDatasetProperty,
           onTapDelete: onTapDeleteDataset,
           onTapLock: onTapLockDataset,
@@ -547,7 +560,6 @@ class _ServerDatasetTile extends StatefulWidget {
   const _ServerDatasetTile({
     super.key,
     required this.dataset,
-    required this.loadingNotifier,
     required this.onTapProperty,
     required this.onTapDelete,
     required this.onTapLock,
@@ -555,7 +567,6 @@ class _ServerDatasetTile extends StatefulWidget {
   });
 
   final ZfsDataset dataset;
-  final ValueNotifier<bool> loadingNotifier;
   final OnTapPropertyCallback onTapProperty;
   final Future<void> Function(ZfsDataset dataset) onTapDelete;
   final Future<void> Function(ZfsDataset dataset) onTapLock;
@@ -903,9 +914,7 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
                       label: 'Delete',
                       icon: Icons.delete_outline,
                       accentColor: Theme.of(context).colorScheme.error,
-                      onPressed: widget.loadingNotifier.value
-                          ? null
-                          : () => widget.onTapDelete(dataset),
+                      onPressed: () => widget.onTapDelete(dataset),
                       toneDownGlow: true,
                     ),
                   if (dataset.isEncrypted) ...[
