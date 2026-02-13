@@ -196,15 +196,5 @@ ThemeData _buildFuturisticDarkTheme() {
       showCloseIcon: true,
       closeIconColor: const Color(0xFF9FEAFF),
     ),
-    textTheme: const TextTheme().copyWith(
-      titleLarge: titleText.copyWith(color: scheme.onSurface, fontSize: 22),
-      titleMedium: titleText.copyWith(color: scheme.onSurface, fontSize: 18),
-      bodyMedium: TextStyle(color: scheme.onSurface.withValues(alpha: 0.96)),
-      bodySmall: TextStyle(color: scheme.onSurface.withValues(alpha: 0.8)),
-      labelLarge: TextStyle(
-        color: scheme.onSurface,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
   );
 }
