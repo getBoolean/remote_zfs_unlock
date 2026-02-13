@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
@@ -103,7 +104,9 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
     try {
       await action().timeout(_operationTimeout);
     } on TimeoutException {
-      // Action timed out after 10 seconds
+      if (kDebugMode) {
+        print('runBusy: Action timed out after ${_operationTimeout.inSeconds} seconds');
+      }
       // Loading state will still be set to false in the finally block
     } finally {
       state = state.copyWith(loading: false);
@@ -138,7 +141,9 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
     try {
       await completer.future.timeout(_operationTimeout);
     } on TimeoutException {
-      // Timeout occurred - loading state did not change to false within 10 seconds
+      if (kDebugMode) {
+        print('waitForIdle: Timeout after ${_operationTimeout.inSeconds} seconds - loading state did not change to false');
+      }
       // This is expected behavior to prevent indefinite hanging
     } finally {
       removeListener();
