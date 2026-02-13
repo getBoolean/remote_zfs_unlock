@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 
-enum _CreateEncryptionMethod { passphrase, keyFile }
+enum _CreateEncryptionMethod { none, passphrase, keyFile }
 
 enum _KeyFileInputMethod { upload, rawText, serverPath }
 
@@ -79,9 +79,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
   final _serverKeyFilePathFocusNode = FocusNode();
 
   late String _selectedParent;
-  bool _encrypted = false;
-  _CreateEncryptionMethod _encryptionMethod =
-      _CreateEncryptionMethod.passphrase;
+  _CreateEncryptionMethod _encryptionMethod = _CreateEncryptionMethod.none;
   _KeyFileInputMethod _keyFileInputMethod = _KeyFileInputMethod.upload;
   CreateDatasetEncryptionType _keyFileEncryptionType =
       CreateDatasetEncryptionType.on;
@@ -201,16 +199,34 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                 },
               ),
               const SizedBox(height: 12),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Encrypt dataset'),
-                subtitle: const Text('Require a key to load dataset keys.'),
-                value: _encrypted,
-                onChanged: (value) {
+              const Text(
+                'Encryption',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<_CreateEncryptionMethod>(
+                segments: const [
+                  ButtonSegment<_CreateEncryptionMethod>(
+                    value: _CreateEncryptionMethod.none,
+                    label: Text('None'),
+                  ),
+                  ButtonSegment<_CreateEncryptionMethod>(
+                    value: _CreateEncryptionMethod.passphrase,
+                    label: Text('Passphrase'),
+                  ),
+                  ButtonSegment<_CreateEncryptionMethod>(
+                    value: _CreateEncryptionMethod.keyFile,
+                    label: Text('Keyfile'),
+                  ),
+                ],
+                selected: {_encryptionMethod},
+                onSelectionChanged: (selection) {
+                  if (selection.isEmpty) {
+                    return;
+                  }
                   setState(() {
-                    _encrypted = value;
-                    if (!value) {
-                      _encryptionMethod = _CreateEncryptionMethod.passphrase;
+                    _encryptionMethod = selection.first;
+                    if (_encryptionMethod == _CreateEncryptionMethod.none) {
                       _keyFileInputMethod = _KeyFileInputMethod.upload;
                       _keyFileEncryptionType = CreateDatasetEncryptionType.on;
                       _passphraseController.clear();
@@ -224,27 +240,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   });
                 },
               ),
-              if (_encrypted) ...[
-                const SizedBox(height: 8),
-                SegmentedButton<_CreateEncryptionMethod>(
-                  segments: const [
-                    ButtonSegment<_CreateEncryptionMethod>(
-                      value: _CreateEncryptionMethod.passphrase,
-                      label: Text('Passphrase'),
-                    ),
-                    ButtonSegment<_CreateEncryptionMethod>(
-                      value: _CreateEncryptionMethod.keyFile,
-                      label: Text('Keyfile'),
-                    ),
-                  ],
-                  selected: {_encryptionMethod},
-                  onSelectionChanged: (selection) {
-                    if (selection.isEmpty) {
-                      return;
-                    }
-                    setState(() => _encryptionMethod = selection.first);
-                  },
-                ),
+              if (_encryptionMethod != _CreateEncryptionMethod.none) ...[
                 if (_encryptionMethod ==
                     _CreateEncryptionMethod.passphrase) ...[
                   const SizedBox(height: 8),
@@ -253,9 +249,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                     decoration: const InputDecoration(labelText: 'Passphrase'),
                     obscureText: true,
                     validator: (value) {
-                      if (!_encrypted ||
-                          _encryptionMethod !=
-                              _CreateEncryptionMethod.passphrase) {
+                      if (_encryptionMethod !=
+                          _CreateEncryptionMethod.passphrase) {
                         return null;
                       }
                       if ((value ?? '').trim().isEmpty) {
@@ -272,9 +267,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                     ),
                     obscureText: true,
                     validator: (value) {
-                      if (!_encrypted ||
-                          _encryptionMethod !=
-                              _CreateEncryptionMethod.passphrase) {
+                      if (_encryptionMethod !=
+                          _CreateEncryptionMethod.passphrase) {
                         return null;
                       }
                       if ((value ?? '').trim().isEmpty) {
@@ -358,9 +352,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   FormField<Uint8List>(
                     key: _keyFileFormFieldKey,
                     validator: (_) {
-                      if (!_encrypted ||
-                          _encryptionMethod !=
-                              _CreateEncryptionMethod.keyFile) {
+                      if (_encryptionMethod !=
+                          _CreateEncryptionMethod.keyFile) {
                         return null;
                       }
                       if (_keyFileInputMethod == _KeyFileInputMethod.upload) {
@@ -550,31 +543,27 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     }
 
     final rawTextBytes =
-        _encrypted &&
-            _encryptionMethod == _CreateEncryptionMethod.keyFile &&
+        _encryptionMethod == _CreateEncryptionMethod.keyFile &&
             _keyFileInputMethod == _KeyFileInputMethod.rawText
         ? Uint8List.fromList(utf8.encode(_rawKeyTextController.text))
         : null;
     final keyFilePathOnServer =
-        _encrypted &&
-            _encryptionMethod == _CreateEncryptionMethod.keyFile &&
+        _encryptionMethod == _CreateEncryptionMethod.keyFile &&
             _keyFileInputMethod == _KeyFileInputMethod.serverPath
         ? _serverKeyFilePathController.text.trim()
         : null;
+    final encrypted = _encryptionMethod != _CreateEncryptionMethod.none;
 
     Navigator.of(context).pop(
       CreateDatasetRequest(
         parentDataset: _selectedParent,
         datasetName: _datasetNameController.text.trim(),
-        encrypted: _encrypted,
+        encrypted: encrypted,
         compressionType: _compressionType,
-        passphrase:
-            _encrypted &&
-                _encryptionMethod == _CreateEncryptionMethod.passphrase
+        passphrase: _encryptionMethod == _CreateEncryptionMethod.passphrase
             ? _passphraseController.text
             : null,
-        keyFileBytes:
-            _encrypted && _encryptionMethod == _CreateEncryptionMethod.keyFile
+        keyFileBytes: _encryptionMethod == _CreateEncryptionMethod.keyFile
             ? switch (_keyFileInputMethod) {
                 _KeyFileInputMethod.upload => _keyFileBytes,
                 _KeyFileInputMethod.rawText => rawTextBytes,
@@ -583,7 +572,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
             : null,
         keyFilePathOnServer: keyFilePathOnServer,
         keyFileEncryptionType:
-            _encrypted && _encryptionMethod == _CreateEncryptionMethod.keyFile
+            _encryptionMethod == _CreateEncryptionMethod.keyFile
             ? _keyFileEncryptionType
             : null,
       ),
