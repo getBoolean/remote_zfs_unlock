@@ -29,24 +29,25 @@ class FuturisticOutlinedButton extends StatelessWidget {
         ? accent
         : scheme.onSurface.withValues(alpha: 0.45);
 
-    final buttonStyle = OutlinedButton.styleFrom(
-      foregroundColor: foregroundColor,
-      backgroundColor: Colors.transparent,
-      side: BorderSide.none,
-      shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(borderRadius),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      textStyle: theme.textTheme.labelLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.24,
-      ),
-    ).copyWith(
-      overlayColor: WidgetStatePropertyAll(
-        accent.withValues(alpha: 0.14 * glowFactor),
-      ),
-    );
+    final buttonStyle =
+        OutlinedButton.styleFrom(
+          foregroundColor: foregroundColor,
+          backgroundColor: Colors.transparent,
+          side: BorderSide.none,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(borderRadius),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          textStyle: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.24,
+          ),
+        ).copyWith(
+          overlayColor: WidgetStatePropertyAll(
+            accent.withValues(alpha: 0.14 * glowFactor),
+          ),
+        );
 
     final buttonChild = icon == null
         ? OutlinedButton(

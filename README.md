@@ -16,7 +16,7 @@ An app for managing ZFS datasets on remote servers over SSH.
 ## Tech stack
 
 - SSH: [`dartssh2`](https://pub.dev/packages/dartssh2)
-- State + hooks: [`hooks_riverpod`](https://pub.dev/packages/hooks_riverpod), [`flutter_hooks`](https://pub.dev/packages/flutter_hooks)
+- State: [`flutter_riverpod`](https://pub.dev/packages/flutter_riverpod)
 - Models: [`dart_mappable`](https://pub.dev/packages/dart_mappable)
 - Local DB: [`hive_ce`](https://pub.dev/packages/hive_ce)
 - Secret storage: [`flutter_secure_storage`](https://pub.dev/packages/flutter_secure_storage)

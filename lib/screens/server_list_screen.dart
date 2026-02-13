@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
@@ -9,7 +9,7 @@ import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart'
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/server_form_dialog.dart';
 
-class ServerListScreen extends HookConsumerWidget {
+class ServerListScreen extends ConsumerWidget {
   const ServerListScreen({super.key});
 
   @override
