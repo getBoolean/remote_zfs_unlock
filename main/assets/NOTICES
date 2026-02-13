@@ -1905,6 +1905,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 coverage
 dart_style
 glob
+http
 http_parser
 matcher
 path
@@ -2103,6 +2104,7 @@ limitations under the License.
 --------------------------------------------------------------------------------
 cross_file
 flutter_plugin_android_lifecycle
+google_fonts
 path_provider_android
 path_provider_foundation
 
