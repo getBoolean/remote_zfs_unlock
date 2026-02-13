@@ -899,12 +899,14 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   if (showDeleteButton)
-                    FilledButton.tonalIcon(
+                    FuturisticOutlinedButton(
+                      label: 'Delete',
+                      icon: Icons.delete_outline,
+                      accentColor: Theme.of(context).colorScheme.error,
                       onPressed: widget.loadingNotifier.value
                           ? null
                           : () => widget.onTapDelete(dataset),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Delete'),
+                      toneDownGlow: true,
                     ),
                   if (dataset.isEncrypted) ...[
                     if (showDeleteButton) const SizedBox(width: 8),
