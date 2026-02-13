@@ -3,6 +3,13 @@ import 'package:hive_ce/hive.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
 
+const _dropdownMenuColor = Color.fromARGB(255, 17, 35, 58);
+const _dropdownTextStyle = TextStyle(
+  color: Color(0xFFEAF5FF),
+  fontWeight: FontWeight.w600,
+  letterSpacing: 0.2,
+);
+
 enum DatasetSortField {
   datasetName('Name'),
   encrypted('Encrypted'),
@@ -42,10 +49,15 @@ class DatasetSortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return PopupMenuButton<DatasetSortField>(
       tooltip: 'Sort datasets',
-      icon: const Icon(Icons.sort),
+      icon: Icon(Icons.sort, color: scheme.primary),
       initialValue: selectedSortField,
+      color: _dropdownMenuColor,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      menuPadding: const EdgeInsets.symmetric(vertical: 4),
       onSelected: (DatasetSortField field) {
         onSortChanged(field);
       },
@@ -53,7 +65,7 @@ class DatasetSortButton extends StatelessWidget {
         for (final field in DatasetSortField.values)
           PopupMenuItem<DatasetSortField>(
             value: field,
-            child: Text(field.label),
+            child: Text(field.label, style: _dropdownTextStyle),
           ),
       ],
     );
