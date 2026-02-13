@@ -131,12 +131,7 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
       }
     });
     try {
-      await completer.future.timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          // Timeout occurred, loading state did not change to false
-        },
-      );
+      await completer.future.timeout(const Duration(seconds: 10));
     } finally {
       removeListener();
     }
