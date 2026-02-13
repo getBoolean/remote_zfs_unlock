@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -9,51 +9,7 @@ import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dar
 
 enum _CreateEncryptionMethod { none, passphrase, keyFile }
 
-enum _KeyFileInputMethod { upload, rawText, serverPath }
-
-class _Utf8ByteLengthLimitingTextInputFormatter extends TextInputFormatter {
-  const _Utf8ByteLengthLimitingTextInputFormatter(this.maxBytes);
-
-  final int maxBytes;
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (utf8.encode(newValue.text).length <= maxBytes) {
-      return newValue;
-    }
-
-    final truncatedText = _truncateToMaxUtf8Bytes(newValue.text);
-    final selectionOffset = newValue.selection.extentOffset.clamp(
-      0,
-      truncatedText.length,
-    );
-
-    return TextEditingValue(
-      text: truncatedText,
-      selection: TextSelection.collapsed(offset: selectionOffset),
-    );
-  }
-
-  String _truncateToMaxUtf8Bytes(String text) {
-    final buffer = StringBuffer();
-    var usedBytes = 0;
-
-    for (final rune in text.runes) {
-      final char = String.fromCharCode(rune);
-      final runeBytes = utf8.encode(char).length;
-      if (usedBytes + runeBytes > maxBytes) {
-        break;
-      }
-      buffer.write(char);
-      usedBytes += runeBytes;
-    }
-
-    return buffer.toString();
-  }
-}
+enum _KeyFileInputMethod { rawText, serverPath }
 
 class CreateDatasetDialog extends StatefulWidget {
   const CreateDatasetDialog({
@@ -81,12 +37,13 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
 
   late String _selectedParent;
   _CreateEncryptionMethod _encryptionMethod = _CreateEncryptionMethod.none;
-  _KeyFileInputMethod _keyFileInputMethod = _KeyFileInputMethod.upload;
+  _KeyFileInputMethod _keyFileInputMethod = _KeyFileInputMethod.rawText;
   CreateDatasetEncryptionType _keyFileEncryptionType =
       CreateDatasetEncryptionType.on;
   ZfsCompressionType? _compressionType;
-  Uint8List? _keyFileBytes;
-  String? _keyFileName;
+  String? _rawKeyInputError;
+  Uint8List? _uploadedKeyFileBytes;
+  String? _uploadedKeyFileName;
   bool _serverPathLookupInProgress = false;
 
   @override
@@ -246,14 +203,15 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   setState(() {
                     _encryptionMethod = selection.first;
                     if (_encryptionMethod == _CreateEncryptionMethod.none) {
-                      _keyFileInputMethod = _KeyFileInputMethod.upload;
+                      _keyFileInputMethod = _KeyFileInputMethod.rawText;
                       _keyFileEncryptionType = CreateDatasetEncryptionType.on;
                       _passphraseController.clear();
                       _confirmPassphraseController.clear();
                       _rawKeyTextController.clear();
+                      _rawKeyInputError = null;
+                      _uploadedKeyFileBytes = null;
+                      _uploadedKeyFileName = null;
                       _serverKeyFilePathController.clear();
-                      _keyFileBytes = null;
-                      _keyFileName = null;
                       _serverPathLookupInProgress = false;
                     }
                   });
@@ -352,12 +310,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   SegmentedButton<_KeyFileInputMethod>(
                     segments: const [
                       ButtonSegment<_KeyFileInputMethod>(
-                        value: _KeyFileInputMethod.upload,
-                        label: Text('Upload keyfile'),
-                      ),
-                      ButtonSegment<_KeyFileInputMethod>(
                         value: _KeyFileInputMethod.rawText,
-                        label: Text('Raw text'),
+                        label: Text('Key bytes / upload'),
                       ),
                       ButtonSegment<_KeyFileInputMethod>(
                         value: _KeyFileInputMethod.serverPath,
@@ -380,24 +334,27 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                           _CreateEncryptionMethod.keyFile) {
                         return null;
                       }
-                      if (_keyFileInputMethod == _KeyFileInputMethod.upload) {
-                        if (_keyFileBytes == null || _keyFileBytes!.isEmpty) {
-                          return 'Keyfile is required.';
-                        }
-                        final byteLength = _keyFileBytes!.length;
-                        if (byteLength != 32) {
-                          return 'Keyfile must be exactly 256 bit (32 bytes).';
-                        }
-                        return null;
-                      }
                       final rawKeyText = _rawKeyTextController.text;
                       if (_keyFileInputMethod == _KeyFileInputMethod.rawText) {
-                        if (rawKeyText.trim().isEmpty) {
-                          return 'Raw key text is required.';
+                        if (_rawKeyInputError != null) {
+                          return _rawKeyInputError;
                         }
-                        final byteLength = utf8.encode(rawKeyText).length;
-                        if (byteLength != 32) {
-                          return 'Raw key must be exactly 256 bit (32 bytes).';
+                        if (_uploadedKeyFileBytes != null) {
+                          final byteLength = _uploadedKeyFileBytes!.length;
+                          if (byteLength != 32) {
+                            return 'Uploaded keyfile must be exactly 256 bit (32 bytes).';
+                          }
+                          return null;
+                        }
+                        if (rawKeyText.trim().isEmpty) {
+                          return 'Key is required.';
+                        }
+                        final parsed = _parseHexKeyBytes(rawKeyText);
+                        if (parsed == null) {
+                          return 'Enter key as hex bytes (64 hex chars).';
+                        }
+                        if (parsed.length != 32) {
+                          return 'Key must be exactly 32 bytes (64 hex chars).';
                         }
                         return null;
                       }
@@ -413,40 +370,37 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_keyFileInputMethod == _KeyFileInputMethod.upload)
-                            Row(
-                              children: [
-                                FuturisticOutlinedButton(
-                                  onPressed: _pickKeyFile,
-                                  icon: Icons.upload_file,
-                                  label: 'Upload keyfile',
-                                  toneDownGlow: true,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _keyFileName ?? 'No file selected',
-                                  ),
-                                ),
-                              ],
-                            )
-                          else if (_keyFileInputMethod ==
+                          if (_keyFileInputMethod ==
                               _KeyFileInputMethod.rawText)
                             TextFormField(
                               controller: _rawKeyTextController,
                               onChanged: (_) {
+                                setState(() {
+                                  _rawKeyInputError = null;
+                                  _uploadedKeyFileBytes = null;
+                                  _uploadedKeyFileName = null;
+                                });
                                 _keyFileFormFieldKey.currentState?.validate();
                               },
-                              inputFormatters: const [
-                                _Utf8ByteLengthLimitingTextInputFormatter(32),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'[0-9a-fA-F]'),
+                                ),
+                                LengthLimitingTextInputFormatter(64),
                               ],
-                              decoration: const InputDecoration(
-                                labelText: 'Raw key text',
-                                hintText: 'Enter raw key contents',
-                                helperText:
-                                    'Text is sent as UTF-8 bytes and must be exactly 32 bytes.',
+                              decoration: InputDecoration(
+                                labelText: 'Raw key bytes (hex)',
+                                hintText: 'Example: 001122... (64 hex chars)',
+                                helperText: _uploadedKeyFileName != null
+                                    ? 'Using uploaded keyfile: $_uploadedKeyFileName (${_uploadedKeyFileBytes?.length ?? 0} bytes).'
+                                    : 'Type hex bytes or upload keyfile. Key must be exactly 32 bytes.',
+                                suffixIcon: IconButton(
+                                  onPressed: _pickKeyFileIntoRawText,
+                                  tooltip: 'Upload keyfile',
+                                  icon: const Icon(Icons.upload_file),
+                                ),
                               ),
-                              minLines: 3,
+                              minLines: 1,
                               maxLines: 5,
                             )
                           else
@@ -578,7 +532,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     final rawTextBytes =
         _encryptionMethod == _CreateEncryptionMethod.keyFile &&
             _keyFileInputMethod == _KeyFileInputMethod.rawText
-        ? Uint8List.fromList(utf8.encode(_rawKeyTextController.text))
+        ? (_uploadedKeyFileBytes ??
+              _parseHexKeyBytes(_rawKeyTextController.text))
         : null;
     final keyFilePathOnServer =
         _encryptionMethod == _CreateEncryptionMethod.keyFile &&
@@ -598,7 +553,6 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
             : null,
         keyFileBytes: _encryptionMethod == _CreateEncryptionMethod.keyFile
             ? switch (_keyFileInputMethod) {
-                _KeyFileInputMethod.upload => _keyFileBytes,
                 _KeyFileInputMethod.rawText => rawTextBytes,
                 _KeyFileInputMethod.serverPath => null,
               }
@@ -656,7 +610,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     onSelected(option);
   }
 
-  Future<void> _pickKeyFile() async {
+  Future<void> _pickKeyFileIntoRawText() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: false,
       withData: true,
@@ -667,12 +621,36 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     }
     final file = result.files.first;
     if (file.bytes == null || file.bytes!.isEmpty) {
+      setState(() {
+        _uploadedKeyFileBytes = null;
+        _uploadedKeyFileName = null;
+        _rawKeyInputError = 'Uploaded keyfile is empty.';
+      });
+      _keyFileFormFieldKey.currentState?.validate();
       return;
     }
     setState(() {
-      _keyFileBytes = file.bytes!;
-      _keyFileName = file.name;
+      _uploadedKeyFileBytes = file.bytes!;
+      _uploadedKeyFileName = file.name;
+      _rawKeyInputError = null;
     });
     _keyFileFormFieldKey.currentState?.validate();
+  }
+
+  Uint8List? _parseHexKeyBytes(String input) {
+    final normalized = input.replaceAll(RegExp(r'\s+'), '');
+    if (normalized.isEmpty || normalized.length.isOdd) {
+      return null;
+    }
+
+    final bytes = Uint8List(normalized.length ~/ 2);
+    for (var i = 0; i < normalized.length; i += 2) {
+      final byteValue = int.tryParse(normalized.substring(i, i + 2), radix: 16);
+      if (byteValue == null) {
+        return null;
+      }
+      bytes[i ~/ 2] = byteValue;
+    }
+    return bytes;
   }
 }
