@@ -2,76 +2,14 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
+import 'package:remote_zfs_unlock/screens/widgets/keyfile_hex_or_upload_field.dart';
 
 enum _CreateEncryptionMethod { none, passphrase, keyFile }
 
 enum _KeyFileInputMethod { rawText, serverPath }
-
-class _HexByteInputFormatter extends TextInputFormatter {
-  const _HexByteInputFormatter();
-
-  static final RegExp _hexCharPattern = RegExp(r'[0-9a-fA-F]');
-  static const _maxHexChars = 64;
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final rawHex = _extractHexChars(newValue.text).toUpperCase();
-    final truncatedHex = rawHex.length > _maxHexChars
-        ? rawHex.substring(0, _maxHexChars)
-        : rawHex;
-    final formatted = _formatHexWithByteSpacing(truncatedHex);
-
-    final selectionRawIndex = _extractHexChars(
-      newValue.text.substring(0, newValue.selection.extentOffset),
-    ).length.clamp(0, truncatedHex.length);
-    final selectionOffset = _selectionOffsetForRawHexIndex(selectionRawIndex);
-
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: selectionOffset),
-    );
-  }
-
-  String _extractHexChars(String input) {
-    final buffer = StringBuffer();
-    for (final rune in input.runes) {
-      final char = String.fromCharCode(rune);
-      if (_hexCharPattern.hasMatch(char)) {
-        buffer.write(char);
-      }
-    }
-    return buffer.toString();
-  }
-
-  String _formatHexWithByteSpacing(String hex) {
-    if (hex.isEmpty) {
-      return '';
-    }
-
-    final buffer = StringBuffer();
-    for (var i = 0; i < hex.length; i++) {
-      if (i > 0 && i.isEven) {
-        buffer.write(' ');
-      }
-      buffer.write(hex[i]);
-    }
-    return buffer.toString();
-  }
-
-  int _selectionOffsetForRawHexIndex(int rawIndex) {
-    if (rawIndex <= 0) {
-      return 0;
-    }
-    return rawIndex + ((rawIndex - 1) ~/ 2);
-  }
-}
 
 class CreateDatasetDialog extends StatefulWidget {
   const CreateDatasetDialog({
@@ -270,6 +208,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   if (selection.isEmpty) {
                     return;
                   }
+                  FocusScope.of(context).unfocus();
+                  _serverKeyFilePathFocusNode.unfocus();
                   setState(() {
                     _encryptionMethod = selection.first;
                     if (_encryptionMethod == _CreateEncryptionMethod.none) {
@@ -393,6 +333,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                       if (selection.isEmpty) {
                         return;
                       }
+                      FocusScope.of(context).unfocus();
+                      _serverKeyFilePathFocusNode.unfocus();
                       setState(() => _keyFileInputMethod = selection.first);
                     },
                   ),
@@ -442,62 +384,26 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                         children: [
                           if (_keyFileInputMethod ==
                               _KeyFileInputMethod.rawText)
-                            (_uploadedKeyFileName == null
-                                ? TextFormField(
-                                    controller: _rawKeyTextController,
-                                    focusNode: _rawKeyTextFocusNode,
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      letterSpacing: 0.6,
-                                    ),
-                                    onChanged: (_) {
-                                      setState(() {
-                                        _rawKeyInputError = null;
-                                        _uploadedKeyFileBytes = null;
-                                        _uploadedKeyFileName = null;
-                                      });
-                                      if (_hexCharCount(
-                                            _rawKeyTextController.text,
-                                          ) >=
-                                          64) {
-                                        _keyFileFormFieldKey.currentState
-                                            ?.validate();
-                                      }
-                                    },
-                                    inputFormatters: const [
-                                      _HexByteInputFormatter(),
-                                    ],
-                                    decoration: InputDecoration(
-                                      labelText: 'Raw key bytes (hex)',
-                                      hintText:
-                                          'Example: 001122... (64 hex chars)',
-                                      helperText:
-                                          'Type hex bytes or upload keyfile. Key must be exactly 32 bytes.',
-                                      suffixIcon: IconButton(
-                                        onPressed: _pickKeyFileIntoRawText,
-                                        tooltip: 'Upload keyfile',
-                                        icon: const Icon(Icons.upload_file),
-                                      ),
-                                    ),
-                                    minLines: 1,
-                                    maxLines: 5,
-                                  )
-                                : InputDecorator(
-                                    decoration: InputDecoration(
-                                      labelText: 'Uploaded keyfile',
-                                      helperText:
-                                          '${_uploadedKeyFileBytes?.length ?? 0} bytes',
-                                      suffixIcon: IconButton(
-                                        onPressed: _clearUploadedKeyFile,
-                                        tooltip: 'Remove uploaded keyfile',
-                                        icon: const Icon(Icons.close),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      _uploadedKeyFileName!,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ))
+                            KeyfileHexOrUploadField(
+                              controller: _rawKeyTextController,
+                              focusNode: _rawKeyTextFocusNode,
+                              uploadedFileName: _uploadedKeyFileName,
+                              uploadedFileSizeBytes:
+                                  _uploadedKeyFileBytes?.length,
+                              onChanged: (_) {
+                                setState(() {
+                                  _rawKeyInputError = null;
+                                  _uploadedKeyFileBytes = null;
+                                  _uploadedKeyFileName = null;
+                                });
+                                if (_hexCharCount(_rawKeyTextController.text) >=
+                                    64) {
+                                  _keyFileFormFieldKey.currentState?.validate();
+                                }
+                              },
+                              onUploadPressed: _pickKeyFileIntoRawText,
+                              onClearUploadedFile: _clearUploadedKeyFile,
+                            )
                           else
                             const SizedBox.shrink(),
                           if (_keyFileInputMethod ==
