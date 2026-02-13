@@ -5,7 +5,7 @@ import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
 import 'package:remote_zfs_unlock/screens/server_detail_screen.dart';
-import 'package:remote_zfs_unlock/screens/server_form_dialog.dart';
+import 'package:remote_zfs_unlock/screens/widgets/server_form_dialog.dart';
 
 class ServerListScreen extends HookConsumerWidget {
   const ServerListScreen({super.key});

@@ -10,11 +10,11 @@ import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
-import 'package:remote_zfs_unlock/screens/create_dataset_dialog.dart';
-import 'package:remote_zfs_unlock/screens/delete_dataset_dialog.dart';
-import 'package:remote_zfs_unlock/screens/lock_dialog.dart';
+import 'package:remote_zfs_unlock/screens/widgets/create_dataset_dialog.dart';
+import 'package:remote_zfs_unlock/screens/widgets/delete_dataset_dialog.dart';
+import 'package:remote_zfs_unlock/screens/widgets/lock_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
-import 'package:remote_zfs_unlock/screens/unlock_dialog.dart';
+import 'package:remote_zfs_unlock/screens/widgets/unlock_dialog.dart';
 
 class ServerDetailScreen extends StatefulHookConsumerWidget {
   const ServerDetailScreen({required this.profile, super.key});
