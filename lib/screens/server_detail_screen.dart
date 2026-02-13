@@ -124,8 +124,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         datasetName: dataset.name,
         expectedKeyLoaded: expectedKeyLoaded,
       );
-      if (latestDataset == null ||
-          latestDataset.isKeyLoaded != expectedKeyLoaded) {
+      if (latestDataset == null) {
         return null;
       }
       return latestDataset;
