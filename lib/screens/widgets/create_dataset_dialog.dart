@@ -74,6 +74,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     );
 
     return AlertDialog(
+      scrollable: true,
       title: const Text('Create dataset'),
       content: SizedBox(
         width: 480,
