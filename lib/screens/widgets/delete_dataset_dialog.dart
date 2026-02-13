@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_filled_button.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 
 class DeleteDatasetDialog extends StatefulWidget {
   const DeleteDatasetDialog({required this.datasetName, super.key});
@@ -59,20 +61,20 @@ class _DeleteDatasetDialogState extends State<DeleteDatasetDialog> {
       actions: [
         FuturisticCancelButton(
           onPressed: () => Navigator.of(context).pop(false),
+          accentColor: Theme.of(context).colorScheme.primary,
         ),
         ValueListenableBuilder<TextEditingValue>(
           valueListenable: _confirmationController,
           builder: (context, value, child) {
             final isExactMatch = value.text == widget.datasetName;
-            return FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-                foregroundColor: Theme.of(context).colorScheme.onError,
-              ),
+            return FuturisticOutlinedButton(
+              icon: Icons.delete_outline,
+              label: 'Delete',
+              accentColor: Theme.of(context).colorScheme.error,
+              toneDownGlow: true,
               onPressed: isExactMatch
                   ? () => Navigator.of(context).pop(true)
                   : null,
-              child: const Text('Delete'),
             );
           },
         ),
