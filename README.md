@@ -15,17 +15,19 @@
 
 ## 📥 Download
 
-Get the latest version **v1.0.0+2** for your platform:
+Get the latest version for your platform from the **[Releases page](https://github.com/getBoolean/remote_zfs_unlock/releases/latest)**
 
-| Platform | Download |
-|----------|----------|
-| 🪟 **Windows** | [remote_zfs_unlock-v1.0.0+2-windows.msix](https://github.com/getBoolean/remote_zfs_unlock/releases/download/v1.0.0%2B2/remote_zfs_unlock-v1.0.0%2B2-windows.msix) |
-| 🍎 **macOS** | [remote_zfs_unlock-v1.0.0+2-macos.dmg](https://github.com/getBoolean/remote_zfs_unlock/releases/download/v1.0.0%2B2/remote_zfs_unlock-v1.0.0%2B2-macos.dmg) |
-| 🐧 **Linux** | [remote_zfs_unlock-v1.0.0+2-linux.rpm](https://github.com/getBoolean/remote_zfs_unlock/releases/download/v1.0.0%2B2/remote_zfs_unlock-v1.0.0%2B2-linux.rpm) |
-| 🤖 **Android** | [remote_zfs_unlock-v1.0.0+2-android-universal.apk](https://github.com/getBoolean/remote_zfs_unlock/releases/download/v1.0.0%2B2/remote_zfs_unlock-v1.0.0%2B2-android-universal.apk) |
-| 📱 **iOS** | [remote_zfs_unlock-v1.0.0+2-ios.ipa](https://github.com/getBoolean/remote_zfs_unlock/releases/download/v1.0.0%2B2/remote_zfs_unlock-v1.0.0%2B2-ios.ipa) |
+### Available Platforms
 
-> 💡 **Tip:** Visit the [Releases page](https://github.com/getBoolean/remote_zfs_unlock/releases/latest) for additional formats and installation instructions.
+| Platform | Format | Installation |
+|----------|--------|--------------|
+| 🪟 **Windows** | `.msix` | Download and install from releases |
+| 🍎 **macOS** | `.dmg` | Download and drag to Applications |
+| 🐧 **Linux** | `.rpm` | Install with your package manager |
+| 🤖 **Android** | `.apk` / `.aab` | Sideload APK or install from store |
+| 📱 **iOS** | `.ipa` | Install via TestFlight or sideload |
+
+> 💡 **Tip:** Each release includes platform-specific installers. Visit the [Releases page](https://github.com/getBoolean/remote_zfs_unlock/releases/latest) to download the latest version.
 
 ---
 
