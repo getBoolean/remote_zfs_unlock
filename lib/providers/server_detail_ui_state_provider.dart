@@ -99,7 +99,10 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
   Future<void> runBusy(Future<void> Function() action) async {
     state = state.copyWith(loading: true);
     try {
-      await action();
+      await action().timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      // Action timed out after 10 seconds
+      // Loading state will still be set to false in the finally block
     } finally {
       state = state.copyWith(loading: false);
     }
