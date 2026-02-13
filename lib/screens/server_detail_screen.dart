@@ -372,7 +372,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
                     profile: profile,
                     visibleDatasetTypes: visibleDatasetTypes,
                     loading: loading,
-                    onTapItemProperty: copyPropertyToClipboard,
+                    onTapDatasetProperty: copyPropertyToClipboard,
                     onTapDeleteDataset: deleteDataset,
                     onTapLockDataset: lockDataset,
                     onTapUnlockDataset: unlockDataset,
@@ -390,7 +390,7 @@ class _DatasetsBody extends StatelessWidget {
     required this.profile,
     required this.visibleDatasetTypes,
     required this.loading,
-    required this.onTapItemProperty,
+    required this.onTapDatasetProperty,
     required this.onTapDeleteDataset,
     required this.onTapLockDataset,
     required this.onTapUnlockDataset,
@@ -400,7 +400,7 @@ class _DatasetsBody extends StatelessWidget {
   final ServerProfile profile;
   final ValueNotifier<Set<ZfsDatasetType>> visibleDatasetTypes;
   final ValueNotifier<bool> loading;
-  final OnTapPropertyCallback onTapItemProperty;
+  final OnTapPropertyCallback onTapDatasetProperty;
   final Future<void> Function(ZfsDataset dataset) onTapDeleteDataset;
   final Future<void> Function(ZfsDataset dataset) onTapLockDataset;
   final Future<void> Function(ZfsDataset dataset) onTapUnlockDataset;
@@ -440,7 +440,7 @@ class _DatasetsBody extends StatelessWidget {
           key: ValueKey(dataset.name),
           dataset: dataset,
           loadingNotifier: loading,
-          onTapProperty: onTapItemProperty,
+          onTapProperty: onTapDatasetProperty,
           onTapDelete: onTapDeleteDataset,
           onTapLock: onTapLockDataset,
           onTapUnlock: onTapUnlockDataset,
