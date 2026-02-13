@@ -3,17 +3,25 @@ import 'package:hive_ce/hive.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/providers/app_providers.dart';
 
-enum DatasetSortField {
-  datasetName('Name'),
-  encrypted('Encrypted'),
-  mounted('Mounted'),
-  used('Used'),
-  available('Available'),
-  mountpoint('Mountpoint');
+const _dropdownMenuColor = Color.fromARGB(255, 17, 35, 58);
+const _dropdownTextStyle = TextStyle(
+  color: Color(0xFFEAF5FF),
+  fontWeight: FontWeight.w600,
+  letterSpacing: 0.2,
+);
 
-  const DatasetSortField(this.label);
+enum DatasetSortField {
+  datasetName('Name', Icons.label_outlined),
+  encrypted('Encrypted', Icons.shield_moon_outlined),
+  mounted('Mounted', Icons.folder_open_outlined),
+  used('Used', Icons.data_usage_outlined),
+  available('Available', Icons.storage_outlined),
+  mountpoint('Mountpoint', Icons.folder_open_outlined);
+
+  const DatasetSortField(this.label, this.icon);
 
   final String label;
+  final IconData icon;
 
   String get storageValue => name;
 }
@@ -42,10 +50,15 @@ class DatasetSortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return PopupMenuButton<DatasetSortField>(
       tooltip: 'Sort datasets',
-      icon: const Icon(Icons.sort),
+      icon: Icon(Icons.sort, color: scheme.primary),
       initialValue: selectedSortField,
+      color: _dropdownMenuColor,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      menuPadding: const EdgeInsets.symmetric(vertical: 4),
       onSelected: (DatasetSortField field) {
         onSortChanged(field);
       },
@@ -53,7 +66,14 @@ class DatasetSortButton extends StatelessWidget {
         for (final field in DatasetSortField.values)
           PopupMenuItem<DatasetSortField>(
             value: field,
-            child: Text(field.label),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(field.icon, size: 18, color: _dropdownTextStyle.color),
+                const SizedBox(width: 10),
+                Text(field.label, style: _dropdownTextStyle),
+              ],
+            ),
           ),
       ],
     );
@@ -157,10 +177,10 @@ Future<void> persistDatasetSortSettings({
 }) {
   final uiPreferencesBox = Hive.box<List<dynamic>>(uiPreferencesBoxName);
   final datasetSortKey = 'dataset_sort_$profileId';
-  return uiPreferencesBox.put(
-    datasetSortKey,
-    <String>[field.storageValue, direction.storageValue],
-  );
+  return uiPreferencesBox.put(datasetSortKey, <String>[
+    field.storageValue,
+    direction.storageValue,
+  ]);
 }
 
 int compareDatasets(

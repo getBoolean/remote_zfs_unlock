@@ -15,6 +15,7 @@ import 'package:remote_zfs_unlock/screens/widgets/create_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/delete_dataset_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/lock_dialog.dart';
 import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/unlock_dialog.dart';
 
 class ServerDetailScreen extends StatefulHookConsumerWidget {
@@ -139,7 +140,8 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           break;
         }
       }
-      if (latestDataset == null || latestDataset.isKeyLoaded != expectedKeyLoaded) {
+      if (latestDataset == null ||
+          latestDataset.isKeyLoaded != expectedKeyLoaded) {
         return null;
       }
       return latestDataset;
@@ -155,8 +157,22 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           profile: profile,
           secrets: secrets,
         );
-        showStatusSnack(output.trim().isEmpty ? 'Connected.' : output.trim());
+        showStatusSnack(output.trim().isEmpty ? 'Connected' : output.trim());
       });
+    }
+
+    Future<void> waitForLoadingToFinish() async {
+      while (loading.value && context.mounted) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+
+    Future<void> waitThenTestConnection() async {
+      await waitForLoadingToFinish();
+      if (!context.mounted) {
+        return;
+      }
+      await testConnection();
     }
 
     Future<void> copyPropertyToClipboard({
@@ -180,6 +196,9 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         return;
       }
       ZfsDataset? currentDataset;
+      if (!context.mounted) {
+        return;
+      }
       final shouldLock = await showDialog<bool>(
         context: context,
         builder: (context) => LockDialog(
@@ -216,7 +235,6 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           dataset: lockedDataset,
         );
         datasets.value = result.datasets;
-        showStatusSnack(result.statusMessage);
       });
     }
 
@@ -243,6 +261,9 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           ? lockUnlockHelper.initialServerKeyFilePath(latestDataset)
           : null;
 
+      if (!context.mounted) {
+        return;
+      }
       final request = await showDialog<UnlockRequest>(
         context: context,
         builder: (context) => UnlockDialog(
@@ -293,7 +314,6 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
           request: request,
         );
         datasets.value = result.datasets;
-        showStatusSnack(result.statusMessage);
       });
     }
 
@@ -345,6 +365,14 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       });
     }
 
+    Future<void> waitThenCreateDataset() async {
+      await waitForLoadingToFinish();
+      if (!context.mounted) {
+        return;
+      }
+      await createDataset();
+    }
+
     Future<void> deleteDataset(ZfsDataset dataset) async {
       final shouldProceed = await showDialog<bool>(
         context: context,
@@ -364,6 +392,14 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         datasets.value = await fetchDatasets();
         showStatusSnack('Deleted `${dataset.name}`.');
       });
+    }
+
+    Future<void> waitThenDeleteDataset(ZfsDataset dataset) async {
+      await waitForLoadingToFinish();
+      if (!context.mounted) {
+        return;
+      }
+      await deleteDataset(dataset);
     }
 
     useEffect(() {
@@ -395,8 +431,8 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         selectedSortField: selectedSortField,
         profile: profile,
         sortDirection: sortDirection,
-        testConnection: testConnection,
-        createDataset: createDataset,
+        testConnection: waitThenTestConnection,
+        createDataset: waitThenCreateDataset,
         refreshDatasets: refreshDatasets,
       ),
       body: Stack(
@@ -410,7 +446,7 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
                     visibleDatasetTypes: visibleDatasetTypes,
                     loading: loading,
                     onTapDatasetProperty: copyPropertyToClipboard,
-                    onTapDeleteDataset: deleteDataset,
+                    onTapDeleteDataset: waitThenDeleteDataset,
                     onTapLockDataset: lockDataset,
                     onTapUnlockDataset: unlockDataset,
                   ),
@@ -483,7 +519,6 @@ class _DatasetsBody extends StatelessWidget {
         return _ServerDatasetTile(
           key: ValueKey(dataset.name),
           dataset: dataset,
-          loadingNotifier: loading,
           onTapProperty: onTapDatasetProperty,
           onTapDelete: onTapDeleteDataset,
           onTapLock: onTapLockDataset,
@@ -525,7 +560,6 @@ class _ServerDatasetTile extends StatefulWidget {
   const _ServerDatasetTile({
     super.key,
     required this.dataset,
-    required this.loadingNotifier,
     required this.onTapProperty,
     required this.onTapDelete,
     required this.onTapLock,
@@ -533,7 +567,6 @@ class _ServerDatasetTile extends StatefulWidget {
   });
 
   final ZfsDataset dataset;
-  final ValueNotifier<bool> loadingNotifier;
   final OnTapPropertyCallback onTapProperty;
   final Future<void> Function(ZfsDataset dataset) onTapDelete;
   final Future<void> Function(ZfsDataset dataset) onTapLock;
@@ -594,23 +627,25 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
         dataset.usedByDataset.trim().toUpperCase() == '234K';
     final hasKeyLocationConfigured =
         dataset.keyLocation.trim().toLowerCase() != 'none';
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final actionButton = !dataset.isEncrypted
         ? const SizedBox.shrink()
         : !hasKeyLocationConfigured
         ? const SizedBox.shrink()
         : dataset.isKeyLoaded
-        ? FilledButton.tonalIcon(
+        ? FuturisticOutlinedButton(
             onPressed: () => widget.onTapLock(dataset),
-            icon: const Icon(Icons.lock_outline),
-            label: const Text('Lock'),
+            icon: Icons.lock_outline,
+            label: 'Lock',
+            accentColor: colorScheme.tertiary,
           )
-        : FilledButton.icon(
+        : FuturisticOutlinedButton(
             onPressed: () => widget.onTapUnlock(dataset),
-            icon: const Icon(Icons.lock_open_outlined),
-            label: const Text('Unlock'),
+            icon: Icons.lock_open_outlined,
+            label: 'Unlock',
+            accentColor: colorScheme.secondary,
           );
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final unlockedFlashColor = colorScheme.primaryContainer;
     final lockedFlashColor = colorScheme.errorContainer;
 
@@ -694,15 +729,71 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
                 Expanded(
                   child: Text(dataset.name, style: theme.textTheme.titleMedium),
                 ),
-                Chip(
-                  avatar: Icon(
-                    dataset.isEncrypted
-                        ? Icons.shield_outlined
-                        : Icons.shield_moon_outlined,
-                    size: 16,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
                   ),
-                  label: Text(encryptedLabel),
-                  visualDensity: VisualDensity.compact,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: dataset.isEncrypted
+                        ? LinearGradient(
+                            colors: [
+                              const Color(0xFFB8C7DD).withValues(alpha: 0.22),
+                              const Color(0xFF8EA4C5).withValues(alpha: 0.1),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    color: dataset.isEncrypted
+                        ? null
+                        : colorScheme.surfaceContainerHighest.withValues(
+                            alpha: 0.45,
+                          ),
+                    border: Border.all(
+                      color: dataset.isEncrypted
+                          ? const Color(0xFF8FA6C8).withValues(alpha: 0.6)
+                          : colorScheme.outlineVariant,
+                      width: 1,
+                    ),
+                    boxShadow: dataset.isEncrypted
+                        ? [
+                            BoxShadow(
+                              color: const Color(
+                                0xFF9AAFD0,
+                              ).withValues(alpha: 0.08),
+                              blurRadius: 4,
+                              spreadRadius: 0,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        dataset.isEncrypted
+                            ? Icons.shield_outlined
+                            : Icons.shield_moon_outlined,
+                        size: 16,
+                        color: dataset.isEncrypted
+                            ? const Color(0xFFD6E3F5)
+                            : null,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        encryptedLabel,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.25,
+                          color: dataset.isEncrypted
+                              ? const Color(0xFFD6E3F5)
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -819,12 +910,12 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   if (showDeleteButton)
-                    FilledButton.tonalIcon(
-                      onPressed: widget.loadingNotifier.value
-                          ? null
-                          : () => widget.onTapDelete(dataset),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Delete'),
+                    FuturisticOutlinedButton(
+                      label: 'Delete',
+                      icon: Icons.delete_outline,
+                      accentColor: Theme.of(context).colorScheme.error,
+                      onPressed: () => widget.onTapDelete(dataset),
+                      toneDownGlow: true,
                     ),
                   if (dataset.isEncrypted) ...[
                     if (showDeleteButton) const SizedBox(width: 8),
@@ -870,12 +961,12 @@ class _ServerDetailNavBar extends StatelessWidget
       actions: [
         IconButton(
           tooltip: 'Test connection',
-          onPressed: loading.value ? null : testConnection,
+          onPressed: testConnection,
           icon: const Icon(Icons.link),
         ),
         IconButton(
           tooltip: 'Create dataset',
-          onPressed: loading.value ? null : createDataset,
+          onPressed: createDataset,
           icon: const Icon(Icons.create_new_folder_outlined),
         ),
         DatasetSortButton(

@@ -1,58 +1,16 @@
-import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
+import 'package:remote_zfs_unlock/screens/widgets/keyfile_hex_or_upload_field.dart';
 
-enum _CreateEncryptionMethod { passphrase, keyFile }
+enum _CreateEncryptionMethod { none, passphrase, keyFile }
 
-enum _KeyFileInputMethod { upload, rawText, serverPath }
-
-class _Utf8ByteLengthLimitingTextInputFormatter extends TextInputFormatter {
-  const _Utf8ByteLengthLimitingTextInputFormatter(this.maxBytes);
-
-  final int maxBytes;
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (utf8.encode(newValue.text).length <= maxBytes) {
-      return newValue;
-    }
-
-    final truncatedText = _truncateToMaxUtf8Bytes(newValue.text);
-    final selectionOffset = newValue.selection.extentOffset.clamp(
-      0,
-      truncatedText.length,
-    );
-
-    return TextEditingValue(
-      text: truncatedText,
-      selection: TextSelection.collapsed(offset: selectionOffset),
-    );
-  }
-
-  String _truncateToMaxUtf8Bytes(String text) {
-    final buffer = StringBuffer();
-    var usedBytes = 0;
-
-    for (final rune in text.runes) {
-      final char = String.fromCharCode(rune);
-      final runeBytes = utf8.encode(char).length;
-      if (usedBytes + runeBytes > maxBytes) {
-        break;
-      }
-      buffer.write(char);
-      usedBytes += runeBytes;
-    }
-
-    return buffer.toString();
-  }
-}
+enum _KeyFileInputMethod { rawText, serverPath }
 
 class CreateDatasetDialog extends StatefulWidget {
   const CreateDatasetDialog({
@@ -75,25 +33,30 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
   final _passphraseController = TextEditingController();
   final _confirmPassphraseController = TextEditingController();
   final _rawKeyTextController = TextEditingController();
+  final _rawKeyTextFocusNode = FocusNode();
   final _serverKeyFilePathController = TextEditingController();
   final _serverKeyFilePathFocusNode = FocusNode();
 
   late String _selectedParent;
-  bool _encrypted = false;
-  _CreateEncryptionMethod _encryptionMethod =
-      _CreateEncryptionMethod.passphrase;
-  _KeyFileInputMethod _keyFileInputMethod = _KeyFileInputMethod.upload;
+  _CreateEncryptionMethod _encryptionMethod = _CreateEncryptionMethod.none;
+  _KeyFileInputMethod _keyFileInputMethod = _KeyFileInputMethod.rawText;
   CreateDatasetEncryptionType _keyFileEncryptionType =
       CreateDatasetEncryptionType.on;
   ZfsCompressionType? _compressionType;
-  Uint8List? _keyFileBytes;
-  String? _keyFileName;
+  String? _rawKeyInputError;
+  Uint8List? _uploadedKeyFileBytes;
+  String? _uploadedKeyFileName;
   bool _serverPathLookupInProgress = false;
 
   @override
   void initState() {
     super.initState();
     _selectedParent = widget.parentDatasets.first;
+    _rawKeyTextFocusNode.addListener(() {
+      if (!_rawKeyTextFocusNode.hasFocus) {
+        _keyFileFormFieldKey.currentState?.validate();
+      }
+    });
   }
 
   @override
@@ -102,6 +65,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     _passphraseController.dispose();
     _confirmPassphraseController.dispose();
     _rawKeyTextController.dispose();
+    _rawKeyTextFocusNode.dispose();
     _serverKeyFilePathController.dispose();
     _serverKeyFilePathFocusNode.dispose();
     super.dispose();
@@ -109,7 +73,16 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    const dropdownMenuColor = Color.fromARGB(255, 17, 35, 58);
+    const dropdownTextStyle = TextStyle(
+      color: Color(0xFFEAF5FF),
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.2,
+    );
+
     return AlertDialog(
+      scrollable: true,
       title: const Text('Create dataset'),
       content: SizedBox(
         width: 480,
@@ -122,6 +95,11 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
               DropdownButtonFormField<String>(
                 initialValue: _selectedParent,
                 isExpanded: true,
+                dropdownColor: dropdownMenuColor,
+                style: dropdownTextStyle,
+                iconEnabledColor: scheme.primary,
+                borderRadius: BorderRadius.circular(14),
+                menuMaxHeight: 360,
                 decoration: const InputDecoration(labelText: 'Parent dataset'),
                 items: widget.parentDatasets
                     .map(
@@ -138,6 +116,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   setState(() => _selectedParent = value);
                 },
               ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _datasetNameController,
                 decoration: const InputDecoration(labelText: 'Dataset name'),
@@ -156,6 +135,11 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
               const SizedBox(height: 8),
               DropdownButtonFormField<ZfsCompressionType?>(
                 initialValue: _compressionType,
+                dropdownColor: dropdownMenuColor,
+                style: dropdownTextStyle,
+                iconEnabledColor: scheme.primary,
+                borderRadius: BorderRadius.circular(14),
+                menuMaxHeight: 360,
                 decoration: const InputDecoration(labelText: 'Compression'),
                 items: const [
                   DropdownMenuItem<ZfsCompressionType?>(
@@ -200,60 +184,61 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                 },
               ),
               const SizedBox(height: 12),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Encrypt dataset'),
-                subtitle: const Text('Require a key to load dataset keys.'),
-                value: _encrypted,
-                onChanged: (value) {
+              const Text(
+                'Encryption',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<_CreateEncryptionMethod>(
+                segments: const [
+                  ButtonSegment<_CreateEncryptionMethod>(
+                    value: _CreateEncryptionMethod.none,
+                    label: Text('None'),
+                  ),
+                  ButtonSegment<_CreateEncryptionMethod>(
+                    value: _CreateEncryptionMethod.passphrase,
+                    label: Text('Passphrase'),
+                  ),
+                  ButtonSegment<_CreateEncryptionMethod>(
+                    value: _CreateEncryptionMethod.keyFile,
+                    label: Text('Keyfile'),
+                  ),
+                ],
+                selected: {_encryptionMethod},
+                onSelectionChanged: (selection) {
+                  if (selection.isEmpty) {
+                    return;
+                  }
+                  FocusScope.of(context).unfocus();
+                  _serverKeyFilePathFocusNode.unfocus();
                   setState(() {
-                    _encrypted = value;
-                    if (!value) {
-                      _encryptionMethod = _CreateEncryptionMethod.passphrase;
-                      _keyFileInputMethod = _KeyFileInputMethod.upload;
+                    _encryptionMethod = selection.first;
+                    if (_encryptionMethod == _CreateEncryptionMethod.none) {
+                      _keyFileInputMethod = _KeyFileInputMethod.rawText;
                       _keyFileEncryptionType = CreateDatasetEncryptionType.on;
                       _passphraseController.clear();
                       _confirmPassphraseController.clear();
                       _rawKeyTextController.clear();
+                      _rawKeyInputError = null;
+                      _uploadedKeyFileBytes = null;
+                      _uploadedKeyFileName = null;
                       _serverKeyFilePathController.clear();
-                      _keyFileBytes = null;
-                      _keyFileName = null;
                       _serverPathLookupInProgress = false;
                     }
                   });
                 },
               ),
-              if (_encrypted) ...[
-                const SizedBox(height: 8),
-                SegmentedButton<_CreateEncryptionMethod>(
-                  segments: const [
-                    ButtonSegment<_CreateEncryptionMethod>(
-                      value: _CreateEncryptionMethod.passphrase,
-                      label: Text('Passphrase'),
-                    ),
-                    ButtonSegment<_CreateEncryptionMethod>(
-                      value: _CreateEncryptionMethod.keyFile,
-                      label: Text('Keyfile'),
-                    ),
-                  ],
-                  selected: {_encryptionMethod},
-                  onSelectionChanged: (selection) {
-                    if (selection.isEmpty) {
-                      return;
-                    }
-                    setState(() => _encryptionMethod = selection.first);
-                  },
-                ),
+              if (_encryptionMethod != _CreateEncryptionMethod.none) ...[
                 if (_encryptionMethod ==
                     _CreateEncryptionMethod.passphrase) ...[
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _passphraseController,
                     decoration: const InputDecoration(labelText: 'Passphrase'),
                     obscureText: true,
                     validator: (value) {
-                      if (!_encrypted ||
-                          _encryptionMethod !=
-                              _CreateEncryptionMethod.passphrase) {
+                      if (_encryptionMethod !=
+                          _CreateEncryptionMethod.passphrase) {
                         return null;
                       }
                       if ((value ?? '').trim().isEmpty) {
@@ -262,6 +247,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _confirmPassphraseController,
                     decoration: const InputDecoration(
@@ -269,9 +255,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                     ),
                     obscureText: true,
                     validator: (value) {
-                      if (!_encrypted ||
-                          _encryptionMethod !=
-                              _CreateEncryptionMethod.passphrase) {
+                      if (_encryptionMethod !=
+                          _CreateEncryptionMethod.passphrase) {
                         return null;
                       }
                       if ((value ?? '').trim().isEmpty) {
@@ -285,58 +270,11 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   ),
                 ] else ...[
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<CreateDatasetEncryptionType>(
-                    initialValue: _keyFileEncryptionType,
-                    decoration: const InputDecoration(
-                      labelText: 'Encryption type',
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: CreateDatasetEncryptionType.on,
-                        child: Text('Default'),
-                      ),
-                      DropdownMenuItem(
-                        value: CreateDatasetEncryptionType.aes128Ccm,
-                        child: Text('AES-128-CCM'),
-                      ),
-                      DropdownMenuItem(
-                        value: CreateDatasetEncryptionType.aes192Ccm,
-                        child: Text('AES-192-CCM'),
-                      ),
-                      DropdownMenuItem(
-                        value: CreateDatasetEncryptionType.aes256Ccm,
-                        child: Text('AES-256-CCM'),
-                      ),
-                      DropdownMenuItem(
-                        value: CreateDatasetEncryptionType.aes128Gcm,
-                        child: Text('AES-128-GCM'),
-                      ),
-                      DropdownMenuItem(
-                        value: CreateDatasetEncryptionType.aes192Gcm,
-                        child: Text('AES-192-GCM'),
-                      ),
-                      DropdownMenuItem(
-                        value: CreateDatasetEncryptionType.aes256Gcm,
-                        child: Text('AES-256-GCM'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() => _keyFileEncryptionType = value);
-                    },
-                  ),
-                  const SizedBox(height: 8),
                   SegmentedButton<_KeyFileInputMethod>(
                     segments: const [
                       ButtonSegment<_KeyFileInputMethod>(
-                        value: _KeyFileInputMethod.upload,
-                        label: Text('Upload keyfile'),
-                      ),
-                      ButtonSegment<_KeyFileInputMethod>(
                         value: _KeyFileInputMethod.rawText,
-                        label: Text('Raw text'),
+                        label: Text('Key bytes / upload'),
                       ),
                       ButtonSegment<_KeyFileInputMethod>(
                         value: _KeyFileInputMethod.serverPath,
@@ -348,6 +286,8 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                       if (selection.isEmpty) {
                         return;
                       }
+                      FocusScope.of(context).unfocus();
+                      _serverKeyFilePathFocusNode.unfocus();
                       setState(() => _keyFileInputMethod = selection.first);
                     },
                   ),
@@ -355,29 +295,31 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   FormField<Uint8List>(
                     key: _keyFileFormFieldKey,
                     validator: (_) {
-                      if (!_encrypted ||
-                          _encryptionMethod !=
-                              _CreateEncryptionMethod.keyFile) {
-                        return null;
-                      }
-                      if (_keyFileInputMethod == _KeyFileInputMethod.upload) {
-                        if (_keyFileBytes == null || _keyFileBytes!.isEmpty) {
-                          return 'Keyfile is required.';
-                        }
-                        final byteLength = _keyFileBytes!.length;
-                        if (byteLength != 32) {
-                          return 'Keyfile must be exactly 256 bit (32 bytes).';
-                        }
+                      if (_encryptionMethod !=
+                          _CreateEncryptionMethod.keyFile) {
                         return null;
                       }
                       final rawKeyText = _rawKeyTextController.text;
                       if (_keyFileInputMethod == _KeyFileInputMethod.rawText) {
-                        if (rawKeyText.trim().isEmpty) {
-                          return 'Raw key text is required.';
+                        if (_rawKeyInputError != null) {
+                          return _rawKeyInputError;
                         }
-                        final byteLength = utf8.encode(rawKeyText).length;
-                        if (byteLength != 32) {
-                          return 'Raw key must be exactly 256 bit (32 bytes).';
+                        if (_uploadedKeyFileBytes != null) {
+                          final byteLength = _uploadedKeyFileBytes!.length;
+                          if (byteLength != 32) {
+                            return 'Uploaded keyfile must be exactly 256 bit (32 bytes).';
+                          }
+                          return null;
+                        }
+                        if (rawKeyText.trim().isEmpty) {
+                          return 'Key is required.';
+                        }
+                        final parsed = _parseHexKeyBytes(rawKeyText);
+                        if (parsed == null) {
+                          return 'Enter key as hex bytes (64 hex chars).';
+                        }
+                        if (parsed.length != 32) {
+                          return 'Key must be exactly 32 bytes (64 hex chars).';
                         }
                         return null;
                       }
@@ -393,42 +335,32 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_keyFileInputMethod == _KeyFileInputMethod.upload)
-                            Row(
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: _pickKeyFile,
-                                  icon: const Icon(Icons.upload_file),
-                                  label: const Text('Upload keyfile'),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _keyFileName ?? 'No file selected',
-                                  ),
-                                ),
-                              ],
-                            )
-                          else if (_keyFileInputMethod ==
+                          if (_keyFileInputMethod ==
                               _KeyFileInputMethod.rawText)
-                            TextFormField(
+                            KeyfileHexOrUploadField(
                               controller: _rawKeyTextController,
+                              focusNode: _rawKeyTextFocusNode,
+                              uploadedFileName: _uploadedKeyFileName,
+                              uploadedFileSizeBytes:
+                                  _uploadedKeyFileBytes?.length,
                               onChanged: (_) {
-                                _keyFileFormFieldKey.currentState?.validate();
+                                setState(() {
+                                  _rawKeyInputError = null;
+                                  _uploadedKeyFileBytes = null;
+                                  _uploadedKeyFileName = null;
+                                });
+                                if (_hexCharCount(_rawKeyTextController.text) >=
+                                    64) {
+                                  _keyFileFormFieldKey.currentState?.validate();
+                                }
                               },
-                              inputFormatters: const [
-                                _Utf8ByteLengthLimitingTextInputFormatter(32),
-                              ],
-                              decoration: const InputDecoration(
-                                labelText: 'Raw key text',
-                                hintText: 'Enter raw key contents',
-                                helperText:
-                                    'Text is sent as UTF-8 bytes and must be exactly 32 bytes.',
-                              ),
-                              minLines: 3,
-                              maxLines: 5,
+                              onUploadPressed: _pickKeyFileIntoRawText,
+                              onClearUploadedFile: _clearUploadedKeyFile,
                             )
                           else
+                            const SizedBox.shrink(),
+                          if (_keyFileInputMethod ==
+                              _KeyFileInputMethod.serverPath)
                             Autocomplete<String>(
                               textEditingController:
                                   _serverKeyFilePathController,
@@ -525,17 +457,67 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                     },
                   ),
                 ],
+                const SizedBox(height: 8),
+                DropdownButtonFormField<CreateDatasetEncryptionType>(
+                  initialValue: _keyFileEncryptionType,
+                  dropdownColor: dropdownMenuColor,
+                  style: dropdownTextStyle,
+                  iconEnabledColor: scheme.primary,
+                  borderRadius: BorderRadius.circular(14),
+                  menuMaxHeight: 360,
+                  decoration: const InputDecoration(
+                    labelText: 'Encryption type',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.on,
+                      child: Text('Default'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes128Ccm,
+                      child: Text('AES-128-CCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes192Ccm,
+                      child: Text('AES-192-CCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes256Ccm,
+                      child: Text('AES-256-CCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes128Gcm,
+                      child: Text('AES-128-GCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes192Gcm,
+                      child: Text('AES-192-GCM'),
+                    ),
+                    DropdownMenuItem(
+                      value: CreateDatasetEncryptionType.aes256Gcm,
+                      child: Text('AES-256-GCM'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() => _keyFileEncryptionType = value);
+                  },
+                ),
               ],
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+        FuturisticCancelButton(onPressed: () => Navigator.of(context).pop()),
+        FuturisticOutlinedButton(
+          onPressed: _submit,
+          icon: Icons.add_rounded,
+          label: 'Create',
+          accentColor: scheme.primary,
         ),
-        FilledButton(onPressed: _submit, child: const Text('Create')),
       ],
     );
   }
@@ -547,40 +529,35 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     }
 
     final rawTextBytes =
-        _encrypted &&
-            _encryptionMethod == _CreateEncryptionMethod.keyFile &&
+        _encryptionMethod == _CreateEncryptionMethod.keyFile &&
             _keyFileInputMethod == _KeyFileInputMethod.rawText
-        ? Uint8List.fromList(utf8.encode(_rawKeyTextController.text))
+        ? (_uploadedKeyFileBytes ??
+              _parseHexKeyBytes(_rawKeyTextController.text))
         : null;
     final keyFilePathOnServer =
-        _encrypted &&
-            _encryptionMethod == _CreateEncryptionMethod.keyFile &&
+        _encryptionMethod == _CreateEncryptionMethod.keyFile &&
             _keyFileInputMethod == _KeyFileInputMethod.serverPath
         ? _serverKeyFilePathController.text.trim()
         : null;
+    final encrypted = _encryptionMethod != _CreateEncryptionMethod.none;
 
     Navigator.of(context).pop(
       CreateDatasetRequest(
         parentDataset: _selectedParent,
         datasetName: _datasetNameController.text.trim(),
-        encrypted: _encrypted,
+        encrypted: encrypted,
         compressionType: _compressionType,
-        passphrase:
-            _encrypted &&
-                _encryptionMethod == _CreateEncryptionMethod.passphrase
+        passphrase: _encryptionMethod == _CreateEncryptionMethod.passphrase
             ? _passphraseController.text
             : null,
-        keyFileBytes:
-            _encrypted && _encryptionMethod == _CreateEncryptionMethod.keyFile
+        keyFileBytes: _encryptionMethod == _CreateEncryptionMethod.keyFile
             ? switch (_keyFileInputMethod) {
-                _KeyFileInputMethod.upload => _keyFileBytes,
                 _KeyFileInputMethod.rawText => rawTextBytes,
                 _KeyFileInputMethod.serverPath => null,
               }
             : null,
         keyFilePathOnServer: keyFilePathOnServer,
-        keyFileEncryptionType:
-            _encrypted && _encryptionMethod == _CreateEncryptionMethod.keyFile
+        keyFileEncryptionType: _encryptionMethod != _CreateEncryptionMethod.none
             ? _keyFileEncryptionType
             : null,
       ),
@@ -632,7 +609,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     onSelected(option);
   }
 
-  Future<void> _pickKeyFile() async {
+  Future<void> _pickKeyFileIntoRawText() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: false,
       withData: true,
@@ -643,12 +620,50 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     }
     final file = result.files.first;
     if (file.bytes == null || file.bytes!.isEmpty) {
+      setState(() {
+        _uploadedKeyFileBytes = null;
+        _uploadedKeyFileName = null;
+        _rawKeyInputError = 'Uploaded keyfile is empty.';
+      });
+      _keyFileFormFieldKey.currentState?.validate();
       return;
     }
     setState(() {
-      _keyFileBytes = file.bytes!;
-      _keyFileName = file.name;
+      _uploadedKeyFileBytes = file.bytes!;
+      _uploadedKeyFileName = file.name;
+      _rawKeyInputError = null;
     });
     _keyFileFormFieldKey.currentState?.validate();
+  }
+
+  void _clearUploadedKeyFile() {
+    setState(() {
+      _uploadedKeyFileBytes = null;
+      _uploadedKeyFileName = null;
+      _rawKeyInputError = null;
+    });
+    _keyFileFormFieldKey.currentState?.validate();
+    _rawKeyTextFocusNode.requestFocus();
+  }
+
+  Uint8List? _parseHexKeyBytes(String input) {
+    final normalized = input.replaceAll(RegExp(r'\s+'), '');
+    if (normalized.isEmpty || normalized.length.isOdd) {
+      return null;
+    }
+
+    final bytes = Uint8List(normalized.length ~/ 2);
+    for (var i = 0; i < normalized.length; i += 2) {
+      final byteValue = int.tryParse(normalized.substring(i, i + 2), radix: 16);
+      if (byteValue == null) {
+        return null;
+      }
+      bytes[i ~/ 2] = byteValue;
+    }
+    return bytes;
+  }
+
+  int _hexCharCount(String input) {
+    return input.replaceAll(RegExp(r'\s+'), '').length;
   }
 }

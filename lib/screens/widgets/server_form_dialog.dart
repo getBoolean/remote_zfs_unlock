@@ -5,13 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:remote_zfs_unlock/models/auth_mode.dart';
 import 'package:remote_zfs_unlock/models/server_profile.dart';
 import 'package:remote_zfs_unlock/models/server_secrets.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 import 'package:uuid/uuid.dart';
 
 class ServerFormResult {
-  const ServerFormResult({
-    required this.profile,
-    required this.secrets,
-  });
+  const ServerFormResult({required this.profile, required this.secrets});
 
   final ServerProfile profile;
   final ServerSecrets secrets;
@@ -42,6 +41,7 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
   final _keyPassphraseController = TextEditingController();
 
   late SshAuthMode _authMode;
+  String? _keyPemUploadError;
 
   @override
   void initState() {
@@ -53,7 +53,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
     _usernameController.text = profile?.username ?? '';
     _passwordController.text = widget.initialSecrets.password ?? '';
     _keyPemController.text = widget.initialSecrets.privateKeyPem ?? '';
-    _keyPassphraseController.text = widget.initialSecrets.privateKeyPassphrase ?? '';
+    _keyPassphraseController.text =
+        widget.initialSecrets.privateKeyPassphrase ?? '';
     _authMode = profile?.authMode ?? SshAuthMode.password;
   }
 
@@ -71,6 +72,9 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    const fieldSpacing = SizedBox(height: 10);
+    final scheme = Theme.of(context).colorScheme;
+
     return AlertDialog(
       title: Text(widget.initialProfile == null ? 'Add server' : 'Edit server'),
       content: SingleChildScrollView(
@@ -86,11 +90,13 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
                   decoration: const InputDecoration(labelText: 'Display name'),
                   validator: _requiredValidator,
                 ),
+                fieldSpacing,
                 TextFormField(
                   controller: _hostController,
                   decoration: const InputDecoration(labelText: 'Host'),
                   validator: _requiredValidator,
                 ),
+                fieldSpacing,
                 TextFormField(
                   controller: _portController,
                   decoration: const InputDecoration(labelText: 'Port'),
@@ -103,15 +109,29 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
                     return null;
                   },
                 ),
+                fieldSpacing,
                 TextFormField(
                   controller: _usernameController,
                   decoration: const InputDecoration(labelText: 'Username'),
                   validator: _requiredValidator,
                 ),
-                const SizedBox(height: 8),
+                fieldSpacing,
                 DropdownButtonFormField<SshAuthMode>(
                   initialValue: _authMode,
-                  decoration: const InputDecoration(labelText: 'Authentication'),
+                  borderRadius: BorderRadius.circular(12),
+                  dropdownColor: scheme.surfaceContainerHighest.withValues(
+                    alpha: 0.96,
+                  ),
+                  iconEnabledColor: scheme.primary,
+                  iconDisabledColor: scheme.outline,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Authentication',
+                  ),
                   items: const [
                     DropdownMenuItem(
                       value: SshAuthMode.password,
@@ -129,7 +149,7 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
                     setState(() => _authMode = value);
                   },
                 ),
-                const SizedBox(height: 8),
+                fieldSpacing,
                 if (_authMode == SshAuthMode.password)
                   TextFormField(
                     controller: _passwordController,
@@ -138,25 +158,42 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
                     validator: _requiredValidator,
                   )
                 else ...[
-                  TextFormField(
-                    controller: _keyPemController,
-                    maxLines: 8,
-                    decoration: const InputDecoration(
-                      labelText: 'Private key PEM',
-                      hintText: '-----BEGIN ...',
-                    ),
-                    validator: _requiredValidator,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
+                  Stack(
                     children: [
-                      ElevatedButton.icon(
-                        onPressed: _pickPrivateKey,
-                        icon: const Icon(Icons.upload_file),
-                        label: const Text('Upload keyfile'),
+                      TextFormField(
+                        controller: _keyPemController,
+                        maxLines: 8,
+                        onChanged: (_) {
+                          if (_keyPemUploadError != null) {
+                            setState(() => _keyPemUploadError = null);
+                          }
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Private key PEM',
+                          hintText: '-----BEGIN ...',
+                          alignLabelWithHint: true,
+                          contentPadding: const EdgeInsets.fromLTRB(
+                            16,
+                            16,
+                            56,
+                            16,
+                          ),
+                          errorText: _keyPemUploadError,
+                        ),
+                        validator: _requiredValidator,
+                      ),
+                      Positioned(
+                        top: 6,
+                        right: 8,
+                        child: IconButton(
+                          onPressed: _pickPrivateKey,
+                          tooltip: 'Upload keyfile',
+                          icon: const Icon(Icons.upload_file),
+                        ),
                       ),
                     ],
                   ),
+                  fieldSpacing,
                   TextFormField(
                     controller: _keyPassphraseController,
                     decoration: const InputDecoration(
@@ -171,13 +208,12 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
+        FuturisticCancelButton(onPressed: () => Navigator.of(context).pop()),
+        FuturisticOutlinedButton(
           onPressed: _submit,
-          child: const Text('Save'),
+          icon: Icons.save_rounded,
+          label: 'Save',
+          accentColor: scheme.primary,
         ),
       ],
     );
@@ -195,9 +231,23 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
     }
     final file = files.first;
     if (file.bytes == null) {
+      setState(() => _keyPemUploadError = 'Could not read key file bytes.');
       return;
     }
-    _keyPemController.text = utf8.decode(file.bytes!);
+    try {
+      final decodedPem = utf8.decode(file.bytes!);
+      setState(() {
+        _keyPemController.text = decodedPem;
+        _keyPemUploadError = null;
+      });
+    } on FormatException {
+      setState(
+        () => _keyPemUploadError =
+            'Invalid PEM file encoding. Use a UTF-8 text private key.',
+      );
+    } catch (_) {
+      setState(() => _keyPemUploadError = 'Failed to read private key file.');
+    }
   }
 
   String? _requiredValidator(String? value) {
@@ -230,6 +280,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
                 : _keyPassphraseController.text,
           );
 
-    Navigator.of(context).pop(ServerFormResult(profile: profile, secrets: secrets));
+    Navigator.of(
+      context,
+    ).pop(ServerFormResult(profile: profile, secrets: secrets));
   }
 }
