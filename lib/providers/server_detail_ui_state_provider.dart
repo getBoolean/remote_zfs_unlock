@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
 import 'package:remote_zfs_unlock/screens/widgets/dataset_sort_controls.dart';
@@ -91,6 +92,8 @@ Set<ZfsDatasetType> _decodeSelectedTypes(List<dynamic>? encoded) {
 
 @riverpod
 class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
+  static const _operationTimeout = Duration(seconds: 10);
+
   @override
   ServerDetailUiState build(String profileId) {
     return ServerDetailUiState.initial(profileId: profileId);
@@ -99,7 +102,12 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
   Future<void> runBusy(Future<void> Function() action) async {
     state = state.copyWith(loading: true);
     try {
-      await action();
+      await action().timeout(_operationTimeout);
+    } on TimeoutException {
+      if (kDebugMode) {
+        debugPrint('runBusy: Action timed out after ${_operationTimeout.inSeconds} seconds');
+      }
+      // Loading state will still be set to false in the finally block
     } finally {
       state = state.copyWith(loading: false);
     }
@@ -131,7 +139,12 @@ class ServerDetailUiStateNotifier extends _$ServerDetailUiStateNotifier {
       }
     });
     try {
-      await completer.future;
+      await completer.future.timeout(_operationTimeout);
+    } on TimeoutException {
+      if (kDebugMode) {
+        debugPrint('waitForIdle: Timeout after ${_operationTimeout.inSeconds} seconds - loading state did not change to false');
+      }
+      // This is expected behavior to prevent indefinite hanging
     } finally {
       removeListener();
     }
