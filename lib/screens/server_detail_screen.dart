@@ -161,6 +161,20 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       });
     }
 
+    Future<void> waitForLoadingToFinish() async {
+      while (loading.value && context.mounted) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+
+    Future<void> waitThenTestConnection() async {
+      await waitForLoadingToFinish();
+      if (!context.mounted) {
+        return;
+      }
+      await testConnection();
+    }
+
     Future<void> copyPropertyToClipboard({
       required String label,
       required String value,
@@ -345,6 +359,14 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
       });
     }
 
+    Future<void> waitThenCreateDataset() async {
+      await waitForLoadingToFinish();
+      if (!context.mounted) {
+        return;
+      }
+      await createDataset();
+    }
+
     Future<void> deleteDataset(ZfsDataset dataset) async {
       final shouldProceed = await showDialog<bool>(
         context: context,
@@ -395,8 +417,8 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         selectedSortField: selectedSortField,
         profile: profile,
         sortDirection: sortDirection,
-        testConnection: testConnection,
-        createDataset: createDataset,
+        testConnection: waitThenTestConnection,
+        createDataset: waitThenCreateDataset,
         refreshDatasets: refreshDatasets,
       ),
       body: Stack(
@@ -928,12 +950,12 @@ class _ServerDetailNavBar extends StatelessWidget
       actions: [
         IconButton(
           tooltip: 'Test connection',
-          onPressed: loading.value ? null : testConnection,
+          onPressed: testConnection,
           icon: const Icon(Icons.link),
         ),
         IconButton(
           tooltip: 'Create dataset',
-          onPressed: loading.value ? null : createDataset,
+          onPressed: createDataset,
           icon: const Icon(Icons.create_new_folder_outlined),
         ),
         DatasetSortButton(
