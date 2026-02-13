@@ -362,10 +362,9 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
         createDataset: createDataset,
         refreshDatasets: refreshDatasets,
       ),
-      body: Column(
+      body: Stack(
         children: [
-          if (loading.value) const LinearProgressIndicator(),
-          Expanded(
+          Positioned.fill(
             child: datasets.value.isEmpty
                 ? const _NoDatasetsBody()
                 : _DatasetsBody(
@@ -379,6 +378,13 @@ class _ServerDetailScreenState extends ConsumerState<ServerDetailScreen>
                     onTapUnlockDataset: unlockDataset,
                   ),
           ),
+          if (loading.value)
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LinearProgressIndicator(),
+            ),
         ],
       ),
     );
@@ -523,7 +529,9 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
     final isKeyLoaded = widget.dataset.isEncrypted
         ? widget.dataset.isKeyLoaded
         : null;
-    if (wasKeyLoaded != null && isKeyLoaded != null && wasKeyLoaded != isKeyLoaded) {
+    if (wasKeyLoaded != null &&
+        isKeyLoaded != null &&
+        wasKeyLoaded != isKeyLoaded) {
       _lastAnimatedToUnlocked = isKeyLoaded;
       _stateChangeController.forward(from: 0);
     }
@@ -582,7 +590,8 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
         final rippleRadius = 0.12 + (Curves.easeOut.transform(progress) * 1.25);
         final rippleOpacity = pulse * 0.22;
         final shimmerOpacity = pulse * 0.3;
-        final shimmerTravel = -1.4 + (Curves.easeInOut.transform(progress) * 2.8);
+        final shimmerTravel =
+            -1.4 + (Curves.easeInOut.transform(progress) * 2.8);
         final flashColor = _lastAnimatedToUnlocked
             ? unlockedFlashColor
             : lockedFlashColor;
@@ -650,10 +659,7 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    dataset.name,
-                    style: theme.textTheme.titleMedium,
-                  ),
+                  child: Text(dataset.name, style: theme.textTheme.titleMedium),
                 ),
                 Chip(
                   avatar: Icon(
@@ -706,10 +712,8 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
                   label: 'Type',
                   value: typeLabel,
                   icon: Icons.category_outlined,
-                  onPressed: () => widget.onTapProperty(
-                    label: 'Type',
-                    value: typeLabel,
-                  ),
+                  onPressed: () =>
+                      widget.onTapProperty(label: 'Type', value: typeLabel),
                 ),
                 _DatasetPropertyChip(
                   label: 'Used',
@@ -742,10 +746,8 @@ class _ServerDatasetTileState extends State<_ServerDatasetTile>
                   label: 'Dedup',
                   value: dedupLabel,
                   icon: Icons.copy_all_outlined,
-                  onPressed: () => widget.onTapProperty(
-                    label: 'Dedup',
-                    value: dedupLabel,
-                  ),
+                  onPressed: () =>
+                      widget.onTapProperty(label: 'Dedup', value: dedupLabel),
                 ),
                 _DatasetPropertyChip(
                   label: 'Mountpoint',
