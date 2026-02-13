@@ -10,12 +10,14 @@ class UnlockDialog extends StatefulWidget {
   const UnlockDialog({
     required this.allowedMethod,
     required this.serverPathSuggestions,
+    required this.onSubmitValidation,
     this.initialServerKeyFilePath,
     super.key,
   });
 
   final UnlockMethod allowedMethod;
   final Future<List<String>> Function(String query) serverPathSuggestions;
+  final Future<bool> Function() onSubmitValidation;
   final String? initialServerKeyFilePath;
 
   @override
@@ -29,6 +31,7 @@ class _UnlockDialogState extends State<UnlockDialog> {
   Uint8List? _keyFileBytes;
   String? _keyFileName;
   _UnlockKeyInputMethod _keyInputMethod = _UnlockKeyInputMethod.upload;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -165,10 +168,19 @@ class _UnlockDialogState extends State<UnlockDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Unlock')),
+        FilledButton(
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Unlock'),
+        ),
       ],
     );
   }
@@ -192,14 +204,14 @@ class _UnlockDialogState extends State<UnlockDialog> {
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (widget.allowedMethod == UnlockMethod.passphrase) {
       final passphrase = _passphraseController.text;
       if (passphrase.trim().isEmpty) {
         _showValidationError('Passphrase is required.');
         return;
       }
-      Navigator.of(context).pop(UnlockRequest.passphrase(passphrase));
+      await _submitWithValidation(UnlockRequest.passphrase(passphrase));
       return;
     }
 
@@ -213,7 +225,7 @@ class _UnlockDialogState extends State<UnlockDialog> {
         _showValidationError('Keyfile must be exactly 256 bit (32 bytes).');
         return;
       }
-      Navigator.of(context).pop(UnlockRequest.keyFile(_keyFileBytes!));
+      await _submitWithValidation(UnlockRequest.keyFile(_keyFileBytes!));
       return;
     }
 
@@ -222,7 +234,20 @@ class _UnlockDialogState extends State<UnlockDialog> {
       _showValidationError('Keyfile path on server is required.');
       return;
     }
-    Navigator.of(context).pop(UnlockRequest.keyFilePathOnServer(keyFilePath));
+    await _submitWithValidation(UnlockRequest.keyFilePathOnServer(keyFilePath));
+  }
+
+  Future<void> _submitWithValidation(UnlockRequest request) async {
+    setState(() => _isSubmitting = true);
+    final isValid = await widget.onSubmitValidation();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _isSubmitting = false);
+    if (!isValid) {
+      return;
+    }
+    Navigator.of(context).pop(request);
   }
 
   void _showValidationError(String message) {

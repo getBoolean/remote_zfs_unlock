@@ -17,6 +17,7 @@ Future<void> main() async {
     Hive.init(appDir.path);
   }
   final box = await Hive.openBox<Map<dynamic, dynamic>>(serverProfilesBoxName);
+  await Hive.openBox<List<dynamic>>(uiPreferencesBoxName);
 
   runApp(
     ProviderScope(
