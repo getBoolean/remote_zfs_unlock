@@ -11,16 +11,17 @@ const _dropdownTextStyle = TextStyle(
 );
 
 enum DatasetSortField {
-  datasetName('Name'),
-  encrypted('Encrypted'),
-  mounted('Mounted'),
-  used('Used'),
-  available('Available'),
-  mountpoint('Mountpoint');
+  datasetName('Name', Icons.label_outlined),
+  encrypted('Encrypted', Icons.shield_moon_outlined),
+  mounted('Mounted', Icons.folder_open_outlined),
+  used('Used', Icons.data_usage_outlined),
+  available('Available', Icons.storage_outlined),
+  mountpoint('Mountpoint', Icons.folder_open_outlined);
 
-  const DatasetSortField(this.label);
+  const DatasetSortField(this.label, this.icon);
 
   final String label;
+  final IconData icon;
 
   String get storageValue => name;
 }
@@ -65,7 +66,14 @@ class DatasetSortButton extends StatelessWidget {
         for (final field in DatasetSortField.values)
           PopupMenuItem<DatasetSortField>(
             value: field,
-            child: Text(field.label, style: _dropdownTextStyle),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(field.icon, size: 18, color: _dropdownTextStyle.color),
+                const SizedBox(width: 10),
+                Text(field.label, style: _dropdownTextStyle),
+              ],
+            ),
           ),
       ],
     );
@@ -169,10 +177,10 @@ Future<void> persistDatasetSortSettings({
 }) {
   final uiPreferencesBox = Hive.box<List<dynamic>>(uiPreferencesBoxName);
   final datasetSortKey = 'dataset_sort_$profileId';
-  return uiPreferencesBox.put(
-    datasetSortKey,
-    <String>[field.storageValue, direction.storageValue],
-  );
+  return uiPreferencesBox.put(datasetSortKey, <String>[
+    field.storageValue,
+    direction.storageValue,
+  ]);
 }
 
 int compareDatasets(
