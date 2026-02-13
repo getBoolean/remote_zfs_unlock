@@ -324,11 +324,12 @@ class ZfsService {
       );
     }
     if (hasPassphrase) {
+      final encryption = request.keyFileEncryptionType.zfsValue;
       final result = await _sshService.runCommandWithInput(
         profile: profile,
         secrets: secrets,
         command:
-            'zfs create -o encryption=on -o keyformat=passphrase -o keylocation=prompt$compressionFlag ${_shellQuote(fullDatasetName)}',
+            'zfs create -o encryption=$encryption -o keyformat=passphrase -o keylocation=prompt$compressionFlag ${_shellQuote(fullDatasetName)}',
         stdinData: '$passphrase\n'.codeUnits,
       );
       if (result.exitCode != 0) {
