@@ -220,8 +220,8 @@ ThemeData _buildFuturisticDarkTheme() {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: scheme.secondary.withValues(alpha: 0.72),
-          width: 1.2,
+          color: scheme.secondary.withValues(alpha: 0.2),
+          width: 1,
         ),
       ),
       elevation: 16,
