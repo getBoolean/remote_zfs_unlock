@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:remote_zfs_unlock/models/unlock_request.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 
 enum _UnlockKeyInputMethod { upload, serverPath }
 
@@ -171,15 +172,10 @@ class _UnlockDialogState extends State<UnlockDialog> {
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
+        FuturisticOutlinedButton(
           onPressed: _isSubmitting ? null : _submit,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Unlock'),
+          icon: Icons.lock_open_outlined,
+          label: 'Unlock',
         ),
       ],
     );

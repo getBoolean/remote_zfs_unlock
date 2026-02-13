@@ -138,6 +138,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                   setState(() => _selectedParent = value);
                 },
               ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _datasetNameController,
                 decoration: const InputDecoration(labelText: 'Dataset name'),
@@ -246,6 +247,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                 ),
                 if (_encryptionMethod ==
                     _CreateEncryptionMethod.passphrase) ...[
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _passphraseController,
                     decoration: const InputDecoration(labelText: 'Passphrase'),
@@ -262,6 +264,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _confirmPassphraseController,
                     decoration: const InputDecoration(

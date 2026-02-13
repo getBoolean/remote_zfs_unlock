@@ -9,11 +9,9 @@ import 'package:remote_zfs_unlock/services/zfs_service.dart';
 class DatasetActionResult {
   const DatasetActionResult({
     required this.datasets,
-    required this.statusMessage,
   });
 
   final List<ZfsDataset> datasets;
-  final String statusMessage;
 }
 
 class DatasetLockUnlockHelper {
@@ -89,9 +87,6 @@ class DatasetLockUnlockHelper {
     final datasets = await _zfsService.listDatasets(profile: profile, secrets: secrets);
     return DatasetActionResult(
       datasets: datasets,
-      statusMessage: isMounted
-          ? 'Unmounted and locked `${dataset.name}`.'
-          : 'Locked `${dataset.name}`.',
     );
   }
 
@@ -128,9 +123,6 @@ class DatasetLockUnlockHelper {
     }
     return DatasetActionResult(
       datasets: datasets,
-      statusMessage: dataset.type == ZfsDatasetType.filesystem
-          ? 'Unlocked and mounted `${dataset.name}`.'
-          : 'Unlocked `${dataset.name}`.',
     );
   }
 

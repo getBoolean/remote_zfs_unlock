@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 
 class LockDialog extends StatefulWidget {
-  const LockDialog({required this.datasetName, required this.onSubmitValidation, super.key});
+  const LockDialog({
+    required this.datasetName,
+    required this.onSubmitValidation,
+    super.key,
+  });
 
   final String datasetName;
   final Future<bool> Function() onSubmitValidation;
@@ -23,15 +28,11 @@ class _LockDialogState extends State<LockDialog> {
           onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
+        FuturisticOutlinedButton(
           onPressed: _isSubmitting ? null : _submit,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Lock'),
+          icon: Icons.lock_outline,
+          label: 'Lock',
+          accentColor: Theme.of(context).colorScheme.tertiary,
         ),
       ],
     );
