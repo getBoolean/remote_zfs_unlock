@@ -11,6 +11,68 @@ enum _CreateEncryptionMethod { none, passphrase, keyFile }
 
 enum _KeyFileInputMethod { rawText, serverPath }
 
+class _HexByteInputFormatter extends TextInputFormatter {
+  const _HexByteInputFormatter();
+
+  static final RegExp _hexCharPattern = RegExp(r'[0-9a-fA-F]');
+  static const _maxHexChars = 64;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final rawHex = _extractHexChars(newValue.text).toUpperCase();
+    final truncatedHex = rawHex.length > _maxHexChars
+        ? rawHex.substring(0, _maxHexChars)
+        : rawHex;
+    final formatted = _formatHexWithByteSpacing(truncatedHex);
+
+    final selectionRawIndex = _extractHexChars(
+      newValue.text.substring(0, newValue.selection.extentOffset),
+    ).length.clamp(0, truncatedHex.length);
+    final selectionOffset = _selectionOffsetForRawHexIndex(selectionRawIndex);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: selectionOffset),
+    );
+  }
+
+  String _extractHexChars(String input) {
+    final buffer = StringBuffer();
+    for (final rune in input.runes) {
+      final char = String.fromCharCode(rune);
+      if (_hexCharPattern.hasMatch(char)) {
+        buffer.write(char);
+      }
+    }
+    return buffer.toString();
+  }
+
+  String _formatHexWithByteSpacing(String hex) {
+    if (hex.isEmpty) {
+      return '';
+    }
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < hex.length; i++) {
+      if (i > 0 && i.isEven) {
+        buffer.write(' ');
+      }
+      buffer.write(hex[i]);
+    }
+    return buffer.toString();
+  }
+
+  int _selectionOffsetForRawHexIndex(int rawIndex) {
+    if (rawIndex <= 0) {
+      return 0;
+    }
+    return rawIndex + ((rawIndex - 1) ~/ 2);
+  }
+}
+
 class CreateDatasetDialog extends StatefulWidget {
   const CreateDatasetDialog({
     required this.parentDatasets,
@@ -32,6 +94,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
   final _passphraseController = TextEditingController();
   final _confirmPassphraseController = TextEditingController();
   final _rawKeyTextController = TextEditingController();
+  final _rawKeyTextFocusNode = FocusNode();
   final _serverKeyFilePathController = TextEditingController();
   final _serverKeyFilePathFocusNode = FocusNode();
 
@@ -50,6 +113,11 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
   void initState() {
     super.initState();
     _selectedParent = widget.parentDatasets.first;
+    _rawKeyTextFocusNode.addListener(() {
+      if (!_rawKeyTextFocusNode.hasFocus) {
+        _keyFileFormFieldKey.currentState?.validate();
+      }
+    });
   }
 
   @override
@@ -58,6 +126,7 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
     _passphraseController.dispose();
     _confirmPassphraseController.dispose();
     _rawKeyTextController.dispose();
+    _rawKeyTextFocusNode.dispose();
     _serverKeyFilePathController.dispose();
     _serverKeyFilePathFocusNode.dispose();
     super.dispose();
@@ -375,20 +444,23 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                               _KeyFileInputMethod.rawText)
                             TextFormField(
                               controller: _rawKeyTextController,
+                              focusNode: _rawKeyTextFocusNode,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                letterSpacing: 0.6,
+                              ),
                               onChanged: (_) {
                                 setState(() {
                                   _rawKeyInputError = null;
                                   _uploadedKeyFileBytes = null;
                                   _uploadedKeyFileName = null;
                                 });
-                                _keyFileFormFieldKey.currentState?.validate();
+                                if (_hexCharCount(_rawKeyTextController.text) >=
+                                    64) {
+                                  _keyFileFormFieldKey.currentState?.validate();
+                                }
                               },
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9a-fA-F]'),
-                                ),
-                                LengthLimitingTextInputFormatter(64),
-                              ],
+                              inputFormatters: const [_HexByteInputFormatter()],
                               decoration: InputDecoration(
                                 labelText: 'Raw key bytes (hex)',
                                 hintText: 'Example: 001122... (64 hex chars)',
@@ -653,5 +725,9 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
       bytes[i ~/ 2] = byteValue;
     }
     return bytes;
+  }
+
+  int _hexCharCount(String input) {
+    return input.replaceAll(RegExp(r'\s+'), '').length;
   }
 }
