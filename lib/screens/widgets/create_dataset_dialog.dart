@@ -442,41 +442,66 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                         children: [
                           if (_keyFileInputMethod ==
                               _KeyFileInputMethod.rawText)
-                            TextFormField(
-                              controller: _rawKeyTextController,
-                              focusNode: _rawKeyTextFocusNode,
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                letterSpacing: 0.6,
-                              ),
-                              onChanged: (_) {
-                                setState(() {
-                                  _rawKeyInputError = null;
-                                  _uploadedKeyFileBytes = null;
-                                  _uploadedKeyFileName = null;
-                                });
-                                if (_hexCharCount(_rawKeyTextController.text) >=
-                                    64) {
-                                  _keyFileFormFieldKey.currentState?.validate();
-                                }
-                              },
-                              inputFormatters: const [_HexByteInputFormatter()],
-                              decoration: InputDecoration(
-                                labelText: 'Raw key bytes (hex)',
-                                hintText: 'Example: 001122... (64 hex chars)',
-                                helperText: _uploadedKeyFileName != null
-                                    ? 'Using uploaded keyfile: $_uploadedKeyFileName (${_uploadedKeyFileBytes?.length ?? 0} bytes).'
-                                    : 'Type hex bytes or upload keyfile. Key must be exactly 32 bytes.',
-                                suffixIcon: IconButton(
-                                  onPressed: _pickKeyFileIntoRawText,
-                                  tooltip: 'Upload keyfile',
-                                  icon: const Icon(Icons.upload_file),
-                                ),
-                              ),
-                              minLines: 1,
-                              maxLines: 5,
-                            )
+                            (_uploadedKeyFileName == null
+                                ? TextFormField(
+                                    controller: _rawKeyTextController,
+                                    focusNode: _rawKeyTextFocusNode,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      letterSpacing: 0.6,
+                                    ),
+                                    onChanged: (_) {
+                                      setState(() {
+                                        _rawKeyInputError = null;
+                                        _uploadedKeyFileBytes = null;
+                                        _uploadedKeyFileName = null;
+                                      });
+                                      if (_hexCharCount(
+                                            _rawKeyTextController.text,
+                                          ) >=
+                                          64) {
+                                        _keyFileFormFieldKey.currentState
+                                            ?.validate();
+                                      }
+                                    },
+                                    inputFormatters: const [
+                                      _HexByteInputFormatter(),
+                                    ],
+                                    decoration: InputDecoration(
+                                      labelText: 'Raw key bytes (hex)',
+                                      hintText:
+                                          'Example: 001122... (64 hex chars)',
+                                      helperText:
+                                          'Type hex bytes or upload keyfile. Key must be exactly 32 bytes.',
+                                      suffixIcon: IconButton(
+                                        onPressed: _pickKeyFileIntoRawText,
+                                        tooltip: 'Upload keyfile',
+                                        icon: const Icon(Icons.upload_file),
+                                      ),
+                                    ),
+                                    minLines: 1,
+                                    maxLines: 5,
+                                  )
+                                : InputDecorator(
+                                    decoration: InputDecoration(
+                                      labelText: 'Uploaded keyfile',
+                                      helperText:
+                                          '${_uploadedKeyFileBytes?.length ?? 0} bytes',
+                                      suffixIcon: IconButton(
+                                        onPressed: _clearUploadedKeyFile,
+                                        tooltip: 'Remove uploaded keyfile',
+                                        icon: const Icon(Icons.close),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      _uploadedKeyFileName!,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ))
                           else
+                            const SizedBox.shrink(),
+                          if (_keyFileInputMethod ==
+                              _KeyFileInputMethod.serverPath)
                             Autocomplete<String>(
                               textEditingController:
                                   _serverKeyFilePathController,
@@ -708,6 +733,16 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
       _rawKeyInputError = null;
     });
     _keyFileFormFieldKey.currentState?.validate();
+  }
+
+  void _clearUploadedKeyFile() {
+    setState(() {
+      _uploadedKeyFileBytes = null;
+      _uploadedKeyFileName = null;
+      _rawKeyInputError = null;
+    });
+    _keyFileFormFieldKey.currentState?.validate();
+    _rawKeyTextFocusNode.requestFocus();
   }
 
   Uint8List? _parseHexKeyBytes(String input) {
