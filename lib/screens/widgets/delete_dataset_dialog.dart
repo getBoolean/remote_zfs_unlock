@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
-import 'package:remote_zfs_unlock/screens/widgets/futuristic_filled_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 
 class DeleteDatasetDialog extends StatefulWidget {
