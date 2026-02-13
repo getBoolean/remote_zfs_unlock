@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:remote_zfs_unlock/models/create_dataset_request.dart';
 import 'package:remote_zfs_unlock/models/zfs_dataset.dart';
+import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 
 enum _CreateEncryptionMethod { none, passphrase, keyFile }
 
@@ -392,10 +393,11 @@ class _CreateDatasetDialogState extends State<CreateDatasetDialog> {
                           if (_keyFileInputMethod == _KeyFileInputMethod.upload)
                             Row(
                               children: [
-                                ElevatedButton.icon(
+                                FuturisticOutlinedButton(
                                   onPressed: _pickKeyFile,
-                                  icon: const Icon(Icons.upload_file),
-                                  label: const Text('Upload keyfile'),
+                                  icon: Icons.upload_file,
+                                  label: 'Upload keyfile',
+                                  toneDownGlow: true,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(

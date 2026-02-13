@@ -6,6 +6,7 @@ class FuturisticOutlinedButton extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.accentColor,
+    this.toneDownGlow = false,
     super.key,
   });
 
@@ -13,6 +14,7 @@ class FuturisticOutlinedButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final IconData? icon;
   final Color? accentColor;
+  final bool toneDownGlow;
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +22,7 @@ class FuturisticOutlinedButton extends StatelessWidget {
     final scheme = theme.colorScheme;
     final enabled = onPressed != null;
     final accent = accentColor ?? scheme.secondary;
+    final glowFactor = toneDownGlow ? 0.55 : 1.0;
     final foregroundColor = enabled
         ? accent
         : scheme.onSurface.withValues(alpha: 0.45);
@@ -36,7 +39,9 @@ class FuturisticOutlinedButton extends StatelessWidget {
         letterSpacing: 0.24,
       ),
     ).copyWith(
-      overlayColor: WidgetStatePropertyAll(accent.withValues(alpha: 0.14)),
+      overlayColor: WidgetStatePropertyAll(
+        accent.withValues(alpha: 0.14 * glowFactor),
+      ),
     );
 
     final buttonChild = icon == null
@@ -58,8 +63,8 @@ class FuturisticOutlinedButton extends StatelessWidget {
         gradient: enabled
             ? LinearGradient(
                 colors: [
-                  accent.withValues(alpha: 0.18),
-                  scheme.primary.withValues(alpha: 0.1),
+                  accent.withValues(alpha: 0.18 * glowFactor),
+                  scheme.primary.withValues(alpha: 0.1 * glowFactor),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -70,16 +75,16 @@ class FuturisticOutlinedButton extends StatelessWidget {
             : scheme.surface.withValues(alpha: 0.12),
         border: Border.all(
           color: enabled
-              ? accent.withValues(alpha: 0.78)
+              ? accent.withValues(alpha: 0.78 * glowFactor)
               : scheme.outlineVariant.withValues(alpha: 0.8),
           width: 1.15,
         ),
         boxShadow: enabled
             ? [
                 BoxShadow(
-                  color: accent.withValues(alpha: 0.2),
-                  blurRadius: 10,
-                  spreadRadius: 0.4,
+                  color: accent.withValues(alpha: 0.2 * glowFactor),
+                  blurRadius: 10 * glowFactor,
+                  spreadRadius: 0.4 * glowFactor,
                 ),
               ]
             : null,
