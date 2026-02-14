@@ -1,0 +1,76 @@
+---
+description: Futuristic/cyber style guidelines for Flutter UI widgets
+globs: lib/{screens,widgets}/**/*.dart
+alwaysApply: false
+---
+
+# Futuristic/Cyber Widget Style
+
+Use this style when creating or updating Flutter UI in screens and widgets.
+
+- Prefer layered dark surfaces with neon accents:
+  - Base backgrounds: near-black or deep blue-gray.
+  - Accent colors: cyan, magenta, violet, or electric blue.
+- Build depth with subtle glow and edge highlights:
+  - Use `BoxShadow` with low opacity and soft blur.
+  - Add thin borders to suggest holographic panels.
+- Favor sharp, geometric structure:
+  - Rounded corners should be small-to-medium, not bubbly.
+  - Use clear spacing rhythm and grid-like alignment.
+- Emphasize readability and contrast:
+  - Keep body text high contrast against dark surfaces.
+  - Use accents for interactive or status elements only.
+- Animate sparingly and with purpose:
+  - Short, smooth transitions (`AnimatedContainer`, `TweenAnimationBuilder`).
+  - Avoid distracting continuous effects.
+- Build UI as composable, reusable widgets:
+  - Extract repeated visual patterns into small widgets (cards, badges, tiles, section headers).
+  - Prefer stateless presentational widgets with clear constructor inputs.
+  - Reuse style constants/tokens for colors, spacing, radius, and shadow values.
+  - Compose screens from these building blocks instead of duplicating inline `Container` trees.
+
+## Example Direction
+
+```dart
+class CyberPanel extends StatelessWidget {
+  const CyberPanel({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1020),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF39D5FF).withOpacity(0.45)),
+        boxShadow: const [BoxShadow(color: Color(0x5539D5FF), blurRadius: 18)],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: child,
+    );
+  }
+}
+
+class StatusBadge extends StatelessWidget {
+  const StatusBadge({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return CyberPanel(
+      child: Text(label, style: const TextStyle(color: Color(0xFF9FE8FF))),
+    );
+  }
+}
+
+// Compose screens from reusable pieces.
+Column(
+  children: const [
+    StatusBadge(label: 'ONLINE'),
+    SizedBox(height: 8),
+    StatusBadge(label: 'UNLOCK READY'),
+  ],
+)
+```
