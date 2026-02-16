@@ -9,6 +9,7 @@ import 'package:remote_zfs_unlock/services/clipboard_service.dart';
 import 'package:remote_zfs_unlock/services/dataset_lock_unlock_helper.dart';
 import 'package:remote_zfs_unlock/services/secure_storage_service.dart';
 import 'package:remote_zfs_unlock/services/ssh_service.dart';
+import 'package:remote_zfs_unlock/services/wol_service.dart';
 import 'package:remote_zfs_unlock/services/zfs_service.dart';
 
 part 'app_providers.g.dart';
@@ -35,6 +36,9 @@ ServerRepository serverRepository(Ref ref) {
 }
 
 @riverpod
+WolService wolService(Ref ref) => WolService();
+
+@riverpod
 SshService sshService(Ref ref) => SshService();
 
 @riverpod
@@ -49,6 +53,12 @@ final datasetLockUnlockHelperProvider = Provider<DatasetLockUnlockHelper>((
 final clipboardServiceProvider = Provider<ClipboardService>((ref) {
   return ClipboardService();
 });
+
+@riverpod
+Future<bool> serverReachable(Ref ref, String host, int port) {
+  final wol = ref.watch(wolServiceProvider);
+  return wol.isReachable(host, port);
+}
 
 @riverpod
 class ServerList extends _$ServerList {

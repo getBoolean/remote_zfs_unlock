@@ -39,6 +39,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
   final _passwordController = TextEditingController();
   final _keyPemController = TextEditingController();
   final _keyPassphraseController = TextEditingController();
+  final _macAddressController = TextEditingController();
+  final _broadcastAddressController = TextEditingController();
 
   late SshAuthMode _authMode;
   String? _keyPemUploadError;
@@ -55,6 +57,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
     _keyPemController.text = widget.initialSecrets.privateKeyPem ?? '';
     _keyPassphraseController.text =
         widget.initialSecrets.privateKeyPassphrase ?? '';
+    _macAddressController.text = profile?.macAddress ?? '';
+    _broadcastAddressController.text = profile?.broadcastAddress ?? '';
     _authMode = profile?.authMode ?? SshAuthMode.password;
   }
 
@@ -67,6 +71,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
     _passwordController.dispose();
     _keyPemController.dispose();
     _keyPassphraseController.dispose();
+    _macAddressController.dispose();
+    _broadcastAddressController.dispose();
     super.dispose();
   }
 
@@ -202,6 +208,39 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
                     obscureText: true,
                   ),
                 ],
+                fieldSpacing,
+                const Divider(),
+                fieldSpacing,
+                Text(
+                  'Wake-on-LAN (optional)',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                fieldSpacing,
+                TextFormField(
+                  controller: _macAddressController,
+                  decoration: const InputDecoration(
+                    labelText: 'MAC address',
+                    hintText: 'AA:BB:CC:DD:EE:FF',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) return null;
+                    final cleaned =
+                        value.trim().replaceAll(RegExp(r'[:\-.]'), '');
+                    if (cleaned.length != 12 ||
+                        !RegExp(r'^[0-9a-fA-F]{12}$').hasMatch(cleaned)) {
+                      return 'Enter a valid MAC address';
+                    }
+                    return null;
+                  },
+                ),
+                fieldSpacing,
+                TextFormField(
+                  controller: _broadcastAddressController,
+                  decoration: const InputDecoration(
+                    labelText: 'Broadcast address (optional)',
+                    hintText: '255.255.255.255',
+                  ),
+                ),
               ],
             ),
           ),
@@ -262,6 +301,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
       return;
     }
 
+    final macText = _macAddressController.text.trim();
+    final broadcastText = _broadcastAddressController.text.trim();
     final profile = ServerProfile(
       id: widget.initialProfile?.id ?? const Uuid().v4(),
       name: _nameController.text.trim(),
@@ -269,6 +310,8 @@ class _ServerFormDialogState extends State<ServerFormDialog> {
       port: int.parse(_portController.text.trim()),
       username: _usernameController.text.trim(),
       authMode: _authMode,
+      macAddress: macText.isEmpty ? null : macText,
+      broadcastAddress: broadcastText.isEmpty ? null : broadcastText,
     );
 
     final secrets = _authMode == SshAuthMode.password

@@ -8,7 +8,6 @@ import 'package:remote_zfs_unlock/screens/server_detail_screen.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_cancel_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/futuristic_outlined_button.dart';
 import 'package:remote_zfs_unlock/screens/widgets/server_form_dialog.dart';
-
 class ServerListScreen extends ConsumerWidget {
   const ServerListScreen({super.key});
 
@@ -136,57 +135,218 @@ class ServerListScreen extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             itemBuilder: (context, index) {
               final profile = profiles[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 6),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  leading: CircleAvatar(
-                    child: Text(
-                      profile.name.trim().isEmpty
-                          ? '?'
-                          : profile.name.trim()[0].toUpperCase(),
+              return _ServerListTile(
+                profile: profile,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ServerDetailScreen(profile: profile),
                     ),
-                  ),
-                  title: Text(
-                    profile.name,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '${profile.username}@${profile.host}:${profile.port}',
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ServerDetailScreen(profile: profile),
-                      ),
-                    );
-                  },
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Edit',
-                        onPressed: () => openForm(profile: profile),
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                      IconButton(
-                        tooltip: 'Delete',
-                        onPressed: () => deleteProfile(profile),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
-                ),
+                  );
+                },
+                onEdit: () => openForm(profile: profile),
+                onDelete: () => deleteProfile(profile),
               );
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _ServerListTile extends ConsumerStatefulWidget {
+  const _ServerListTile({
+    required this.profile,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final ServerProfile profile;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  ConsumerState<_ServerListTile> createState() => _ServerListTileState();
+}
+
+class _ServerListTileState extends ConsumerState<_ServerListTile> {
+  bool _sendingWol = false;
+
+  Future<void> _sendWol() async {
+    final mac = widget.profile.macAddress;
+    if (mac == null || mac.isEmpty) return;
+
+    setState(() => _sendingWol = true);
+    try {
+      final wol = ref.read(wolServiceProvider);
+      await wol.sendMagicPacket(
+        macAddress: mac,
+        broadcastAddress: widget.profile.broadcastAddress,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Magic packet sent to ${widget.profile.name}'),
+          ),
+        );
+        // Refresh reachability after a short delay
+        ref.invalidate(
+          serverReachableProvider(widget.profile.host, widget.profile.port),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send magic packet: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sendingWol = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = widget.profile;
+    final reachableAsync = ref.watch(
+      serverReachableProvider(profile.host, profile.port),
+    );
+    final scheme = Theme.of(context).colorScheme;
+    final hasMac = profile.macAddress != null && profile.macAddress!.isNotEmpty;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 8,
+        ),
+        leading: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            CircleAvatar(
+              child: Text(
+                profile.name.trim().isEmpty
+                    ? '?'
+                    : profile.name.trim()[0].toUpperCase(),
+              ),
+            ),
+            Positioned(
+              right: -2,
+              bottom: -2,
+              child: reachableAsync.when(
+                data: (online) => Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: online
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFEF5350),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: scheme.surface, width: 2),
+                  ),
+                ),
+                loading: () => SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: scheme.outline,
+                  ),
+                ),
+                error: (_, _) => Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: scheme.outline,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: scheme.surface, width: 2),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        title: Text(
+          profile.name,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${profile.username}@${profile.host}:${profile.port}',
+              ),
+              reachableAsync.when(
+                data: (online) => Text(
+                  online ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    color: online
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFEF5350),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                loading: () => Text(
+                  'Checking...',
+                  style: TextStyle(
+                    color: scheme.outline,
+                    fontSize: 12,
+                  ),
+                ),
+                error: (_, _) => Text(
+                  'Unknown',
+                  style: TextStyle(
+                    color: scheme.outline,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        onTap: widget.onTap,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasMac)
+              reachableAsync.maybeWhen(
+                data: (online) => online
+                    ? const SizedBox.shrink()
+                    : IconButton(
+                        tooltip: 'Wake on LAN',
+                        onPressed: _sendingWol ? null : _sendWol,
+                        icon: _sendingWol
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: scheme.primary,
+                                ),
+                              )
+                            : const Icon(Icons.power_settings_new),
+                      ),
+                orElse: () => const SizedBox.shrink(),
+              ),
+            IconButton(
+              tooltip: 'Edit',
+              onPressed: widget.onEdit,
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            IconButton(
+              tooltip: 'Delete',
+              onPressed: widget.onDelete,
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ),
       ),
     );
   }

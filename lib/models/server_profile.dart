@@ -12,6 +12,8 @@ class ServerProfile with ServerProfileMappable {
     required this.port,
     required this.username,
     required this.authMode,
+    this.macAddress,
+    this.broadcastAddress,
   });
 
   final String id;
@@ -20,4 +22,6 @@ class ServerProfile with ServerProfileMappable {
   final int port;
   final String username;
   final SshAuthMode authMode;
+  final String? macAddress;
+  final String? broadcastAddress;
 }

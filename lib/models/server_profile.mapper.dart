@@ -41,6 +41,18 @@ class ServerProfileMapper extends ClassMapperBase<ServerProfile> {
     'authMode',
     _$authMode,
   );
+  static String? _$macAddress(ServerProfile v) => v.macAddress;
+  static const Field<ServerProfile, String> _f$macAddress = Field(
+    'macAddress',
+    _$macAddress,
+    opt: true,
+  );
+  static String? _$broadcastAddress(ServerProfile v) => v.broadcastAddress;
+  static const Field<ServerProfile, String> _f$broadcastAddress = Field(
+    'broadcastAddress',
+    _$broadcastAddress,
+    opt: true,
+  );
 
   @override
   final MappableFields<ServerProfile> fields = const {
@@ -50,6 +62,8 @@ class ServerProfileMapper extends ClassMapperBase<ServerProfile> {
     #port: _f$port,
     #username: _f$username,
     #authMode: _f$authMode,
+    #macAddress: _f$macAddress,
+    #broadcastAddress: _f$broadcastAddress,
   };
 
   static ServerProfile _instantiate(DecodingData data) {
@@ -60,6 +74,8 @@ class ServerProfileMapper extends ClassMapperBase<ServerProfile> {
       port: data.dec(_f$port),
       username: data.dec(_f$username),
       authMode: data.dec(_f$authMode),
+      macAddress: data.dec(_f$macAddress),
+      broadcastAddress: data.dec(_f$broadcastAddress),
     );
   }
 
@@ -132,6 +148,8 @@ abstract class ServerProfileCopyWith<$R, $In extends ServerProfile, $Out>
     int? port,
     String? username,
     SshAuthMode? authMode,
+    String? macAddress,
+    String? broadcastAddress,
   });
   ServerProfileCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -152,6 +170,8 @@ class _ServerProfileCopyWithImpl<$R, $Out>
     int? port,
     String? username,
     SshAuthMode? authMode,
+    Object? macAddress = $none,
+    Object? broadcastAddress = $none,
   }) => $apply(
     FieldCopyWithData({
       if (id != null) #id: id,
@@ -160,6 +180,8 @@ class _ServerProfileCopyWithImpl<$R, $Out>
       if (port != null) #port: port,
       if (username != null) #username: username,
       if (authMode != null) #authMode: authMode,
+      if (macAddress != $none) #macAddress: macAddress,
+      if (broadcastAddress != $none) #broadcastAddress: broadcastAddress,
     }),
   );
   @override
@@ -170,6 +192,8 @@ class _ServerProfileCopyWithImpl<$R, $Out>
     port: data.get(#port, or: $value.port),
     username: data.get(#username, or: $value.username),
     authMode: data.get(#authMode, or: $value.authMode),
+    macAddress: data.get(#macAddress, or: $value.macAddress),
+    broadcastAddress: data.get(#broadcastAddress, or: $value.broadcastAddress),
   );
 
   @override

@@ -198,6 +198,47 @@ final class ServerRepositoryProvider
 
 String _$serverRepositoryHash() => r'0d75598d848de9369473a534e890e551784de1f1';
 
+@ProviderFor(wolService)
+final wolServiceProvider = WolServiceProvider._();
+
+final class WolServiceProvider
+    extends $FunctionalProvider<WolService, WolService, WolService>
+    with $Provider<WolService> {
+  WolServiceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'wolServiceProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$wolServiceHash();
+
+  @$internal
+  @override
+  $ProviderElement<WolService> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  WolService create(Ref ref) {
+    return wolService(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(WolService value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<WolService>(value),
+    );
+  }
+}
+
+String _$wolServiceHash() => r'2456f3449d0288e564da556a7b2b296f65fb9bda';
+
 @ProviderFor(sshService)
 final sshServiceProvider = SshServiceProvider._();
 
@@ -279,6 +320,75 @@ final class ZfsServiceProvider
 }
 
 String _$zfsServiceHash() => r'1d7c2dcb919a47079d1a0cc6c6a325a1a01ea131';
+
+@ProviderFor(serverReachable)
+final serverReachableProvider = ServerReachableFamily._();
+
+final class ServerReachableProvider
+    extends $FunctionalProvider<AsyncValue<bool>, bool, FutureOr<bool>>
+    with $FutureModifier<bool>, $FutureProvider<bool> {
+  ServerReachableProvider._({
+    required ServerReachableFamily super.from,
+    required (String, int) super.argument,
+  }) : super(
+         retry: null,
+         name: r'serverReachableProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$serverReachableHash();
+
+  @override
+  String toString() {
+    return r'serverReachableProvider'
+        ''
+        '$argument';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<bool> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<bool> create(Ref ref) {
+    final argument = this.argument as (String, int);
+    return serverReachable(ref, argument.$1, argument.$2);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ServerReachableProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$serverReachableHash() => r'8f3aa4fd6d08da24b7eb4567c077bbbabba74337';
+
+final class ServerReachableFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<bool>, (String, int)> {
+  ServerReachableFamily._()
+    : super(
+        retry: null,
+        name: r'serverReachableProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  ServerReachableProvider call(String host, int port) =>
+      ServerReachableProvider._(argument: (host, port), from: this);
+
+  @override
+  String toString() => r'serverReachableProvider';
+}
 
 @ProviderFor(ServerList)
 final serverListProvider = ServerListProvider._();

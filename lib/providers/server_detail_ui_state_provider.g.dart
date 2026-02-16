@@ -61,7 +61,7 @@ final class ServerDetailUiStateNotifierProvider
 }
 
 String _$serverDetailUiStateNotifierHash() =>
-    r'a2ce7047b428c4453f7c59018ad8ed5bf3e6af3b';
+    r'e91ab8ed9b4495e08ca3ed2a43ecc214fd52425d';
 
 final class ServerDetailUiStateNotifierFamily extends $Family
     with
