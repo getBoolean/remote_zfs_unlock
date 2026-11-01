@@ -72,11 +72,14 @@ Try the limited web demo at [https://getboolean.github.io/remote_zfs_unlock/main
 
 Your remote server needs the following:
 
+- ✅ OpenZFS **2.2.4 or newer**. Unlocking a dataset mounts its child datasets with `zfs mount -R`, which was added in 2.2.4. On older releases the selected dataset still unlocks and mounts, but the app reports that its child datasets could not be mounted.
 - ✅ `zfs` installed and available for the SSH user
 - ✅ SSH user must be permitted to run:
   - `zfs list`
   - `zfs load-key`
   - `zfs unload-key`
+  - `zfs mount`
+  - `zfs unmount`
   - `ls`
 - ✅ If `sudo` is required for `zfs`, configure appropriate `sudoers` rules
 

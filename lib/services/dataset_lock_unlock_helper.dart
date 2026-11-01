@@ -107,29 +107,19 @@ class DatasetLockUnlockHelper {
       request: request,
     );
     if (dataset.type == ZfsDatasetType.filesystem) {
+      // Mounts the dataset and its child filesystems. ZFS does not mount
+      // children on its own; on Proxmox they only appeared later because
+      // pvestatd sometimes runs `zfs mount -a`.
       await _zfsService.mountDataset(
         profile: profile,
         secrets: secrets,
         datasetName: dataset.name,
       );
     }
-    var datasets = await _zfsService.listDatasets(
+    final datasets = await _zfsService.listDatasets(
       profile: profile,
       secrets: secrets,
     );
-    final hasNestedFilesystem = datasets.any(
-      (candidate) =>
-          candidate.type == ZfsDatasetType.filesystem &&
-          candidate.name.startsWith('${dataset.name}/'),
-    );
-    if (hasNestedFilesystem) {
-      // Child datasets can mount shortly after the parent unlock/mount completes.
-      await Future<void>.delayed(const Duration(milliseconds: 1500));
-      datasets = await _zfsService.listDatasets(
-        profile: profile,
-        secrets: secrets,
-      );
-    }
     return DatasetActionResult(datasets: datasets);
   }
 
