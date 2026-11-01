@@ -498,7 +498,7 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
     );
   });
 
-  test('mountDataset mounts children with zfs mount -R', () async {
+  test('mountDataset mounts the dataset, then its children with -R', () async {
     await zfsService.mountDataset(
       profile: profile,
       secrets: secrets,
@@ -506,11 +506,12 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
     );
 
     expect(sshService.commandWithInputCalls.map((call) => call.command), [
+      "zfs mount 'tank/home'",
       "zfs mount -R 'tank/home'",
     ]);
   });
 
-  test('mountDataset throws on a zfs mount -R failure', () async {
+  test('mountDataset stops when the dataset itself fails to mount', () async {
     sshService.onCommandWithInput = (_) => const SshExecutionResult(
       exitCode: 1,
       stdout: '',
@@ -534,46 +535,56 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
     expect(sshService.commandWithInputCalls, hasLength(1));
   });
 
-  test(
-    'mountDataset falls back to per-dataset mounts when -R is unsupported',
-    () async {
-      sshService.onCommandWithInput = (command) {
-        if (command.startsWith('zfs mount -R')) {
-          return const SshExecutionResult(
-            exitCode: 2,
+  test('mountDataset reports a child mount failure from -R', () async {
+    sshService.onCommandWithInput = (command) => command.contains(' -R ')
+        ? const SshExecutionResult(
+            exitCode: 1,
             stdout: '',
-            stderr: "invalid option 'R'\nusage:\n\tmount\n",
-          );
-        }
-        if (command.startsWith('zfs list')) {
-          return const SshExecutionResult(
-            exitCode: 0,
-            stdout:
-                'tank/home\tnoauto\tno\n'
-                'tank/home/a\ton\tno\n'
-                'tank/home/a/deep\ton\tno\n'
-                'tank/home/b\tnoauto\tno\n'
-                'tank/home/c\toff\tno\n'
-                'tank/home/d\ton\tyes\n',
-            stderr: '',
-          );
-        }
-        return const SshExecutionResult(exitCode: 0, stdout: '', stderr: '');
-      };
+            stderr: "cannot mount 'tank/home/a': directory is not empty",
+          )
+        : const SshExecutionResult(exitCode: 0, stdout: '', stderr: '');
 
-      await zfsService.mountDataset(
+    await expectLater(
+      zfsService.mountDataset(
         profile: profile,
         secrets: secrets,
         datasetName: 'tank/home',
-      );
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains("'tank/home/a': directory is not empty"),
+        ),
+      ),
+    );
+  });
 
-      expect(sshService.commandWithInputCalls.map((call) => call.command), [
-        "zfs mount -R 'tank/home'",
-        "zfs list -H -r -t filesystem -o name,canmount,mounted 'tank/home'",
-        "zfs mount 'tank/home'",
-        "zfs mount 'tank/home/a'",
-        "zfs mount 'tank/home/a/deep'",
-      ]);
+  test(
+    'mountDataset names the required OpenZFS version when -R is unsupported',
+    () async {
+      sshService.onCommandWithInput = (command) => command.contains(' -R ')
+          ? const SshExecutionResult(
+              exitCode: 2,
+              stdout: '',
+              stderr: "invalid option 'R'\nusage:\n\tmount\n",
+            )
+          : const SshExecutionResult(exitCode: 0, stdout: '', stderr: '');
+
+      await expectLater(
+        zfsService.mountDataset(
+          profile: profile,
+          secrets: secrets,
+          datasetName: 'tank/home',
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('OpenZFS 2.2.4 or newer'), contains("'tank/home'")),
+          ),
+        ),
+      );
     },
   );
 

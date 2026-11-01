@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -465,83 +464,60 @@ class ZfsService {
     }
   }
 
-  /// Mounts [datasetName] and every descendant filesystem with `canmount=on`.
+  /// Minimum OpenZFS release that supports `zfs mount -R`.
+  static const minimumOpenZfsVersionForRecursiveMount = '2.2.4';
+
+  /// Mounts [datasetName] and its descendant filesystems.
   ///
-  /// ZFS does not mount child filesystems when the parent is mounted, even
-  /// though their keys follow the encryption root. `zfs mount -R` handles this
-  /// in one step on OpenZFS 2.2+. Older releases reject `-R`, so the
-  /// descendants are mounted one by one instead.
+  /// ZFS does not mount child filesystems when their parent is mounted, even
+  /// though their keys follow the encryption root. This runs two steps:
+  ///
+  /// 1. `zfs mount <dataset>` mounts the selected dataset explicitly, so a
+  ///    dataset with `canmount=noauto` is still mounted.
+  /// 2. `zfs mount -R <dataset>` mounts the descendants. It follows the same
+  ///    rules as `zfs mount -a`: it skips datasets that are already mounted,
+  ///    have `canmount` set to `noauto` or `off`, have a `none` or `legacy`
+  ///    mountpoint, or belong to a separate encryption root whose key is not
+  ///    loaded.
+  ///
+  /// `zfs mount -R` requires OpenZFS
+  /// [minimumOpenZfsVersionForRecursiveMount] or newer. Older releases reject
+  /// it, and this throws a [StateError] that names the required version. The
+  /// selected dataset is already mounted at that point.
   Future<void> mountDataset({
     required ServerProfile profile,
     required ServerSecrets secrets,
     required String datasetName,
   }) async {
-    final result = await _sshService.runCommandWithInput(
+    final quotedName = _shellQuote(datasetName);
+    final mountResult = await _sshService.runCommandWithInput(
       profile: profile,
       secrets: secrets,
-      command: 'zfs mount -R ${_shellQuote(datasetName)}',
+      command: 'zfs mount $quotedName',
       stdinData: const [],
     );
-    if (result.exitCode == 0) {
+    if (mountResult.exitCode != 0) {
+      throw StateError(_joinStdio(mountResult.stdout, mountResult.stderr));
+    }
+    final recursiveResult = await _sshService.runCommandWithInput(
+      profile: profile,
+      secrets: secrets,
+      command: 'zfs mount -R $quotedName',
+      stdinData: const [],
+    );
+    if (recursiveResult.exitCode == 0) {
       return;
     }
-    if (!_isUnsupportedOptionError(result.stderr)) {
-      throw StateError(_joinStdio(result.stdout, result.stderr));
-    }
-    await _mountRecursivelyWithoutDashR(
-      profile: profile,
-      secrets: secrets,
-      datasetName: datasetName,
-    );
-  }
-
-  bool _isUnsupportedOptionError(String stderr) {
-    return stderr.toLowerCase().contains("invalid option 'r'");
-  }
-
-  Future<void> _mountRecursivelyWithoutDashR({
-    required ServerProfile profile,
-    required ServerSecrets secrets,
-    required String datasetName,
-  }) async {
-    final listResult = await _sshService.runCommandWithInput(
-      profile: profile,
-      secrets: secrets,
-      command:
-          'zfs list -H -r -t filesystem -o name,canmount,mounted ${_shellQuote(datasetName)}',
-      stdinData: const [],
-    );
-    if (listResult.exitCode != 0) {
-      throw StateError(_joinStdio(listResult.stdout, listResult.stderr));
-    }
-    // `zfs list -r` orders parents before their children, so mounting in
-    // order keeps nested mountpoints correct.
-    for (final line in const LineSplitter().convert(listResult.stdout)) {
-      final fields = line.split('\t');
-      if (fields.length < 3) {
-        continue;
-      }
-      final name = fields[0];
-      final canMount = fields[1].trim();
-      final mounted = fields[2].trim();
-      if (mounted == 'yes') {
-        continue;
-      }
-      // The selected dataset is mounted explicitly, matching plain
-      // `zfs mount`; descendants follow `zfs mount -R` and skip noauto/off.
-      if (name != datasetName && canMount != 'on') {
-        continue;
-      }
-      final mountResult = await _sshService.runCommandWithInput(
-        profile: profile,
-        secrets: secrets,
-        command: 'zfs mount ${_shellQuote(name)}',
-        stdinData: const [],
+    if (recursiveResult.stderr.contains("invalid option 'R'")) {
+      throw StateError(
+        "Mounted '$datasetName', but its child datasets were not mounted: "
+        '`zfs mount -R` requires OpenZFS '
+        '$minimumOpenZfsVersionForRecursiveMount or newer on the server.',
       );
-      if (mountResult.exitCode != 0) {
-        throw StateError(_joinStdio(mountResult.stdout, mountResult.stderr));
-      }
     }
+    throw StateError(
+      _joinStdio(recursiveResult.stdout, recursiveResult.stderr),
+    );
   }
 
   Future<void> unmountDataset({
