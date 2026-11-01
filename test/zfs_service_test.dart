@@ -498,6 +498,85 @@ tank/media\toff\t-\tyes\t2G\t200G\tvolume\toff\tlz4\tnone\tnone\t/tank/media
     );
   });
 
+  test('mountDataset mounts children with zfs mount -R', () async {
+    await zfsService.mountDataset(
+      profile: profile,
+      secrets: secrets,
+      datasetName: 'tank/home',
+    );
+
+    expect(sshService.commandWithInputCalls.map((call) => call.command), [
+      "zfs mount -R 'tank/home'",
+    ]);
+  });
+
+  test('mountDataset throws on a zfs mount -R failure', () async {
+    sshService.onCommandWithInput = (_) => const SshExecutionResult(
+      exitCode: 1,
+      stdout: '',
+      stderr: "cannot mount 'tank/home': directory is not empty",
+    );
+
+    await expectLater(
+      zfsService.mountDataset(
+        profile: profile,
+        secrets: secrets,
+        datasetName: 'tank/home',
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('directory is not empty'),
+        ),
+      ),
+    );
+    expect(sshService.commandWithInputCalls, hasLength(1));
+  });
+
+  test(
+    'mountDataset falls back to per-dataset mounts when -R is unsupported',
+    () async {
+      sshService.onCommandWithInput = (command) {
+        if (command.startsWith('zfs mount -R')) {
+          return const SshExecutionResult(
+            exitCode: 2,
+            stdout: '',
+            stderr: "invalid option 'R'\nusage:\n\tmount\n",
+          );
+        }
+        if (command.startsWith('zfs list')) {
+          return const SshExecutionResult(
+            exitCode: 0,
+            stdout:
+                'tank/home\tnoauto\tno\n'
+                'tank/home/a\ton\tno\n'
+                'tank/home/a/deep\ton\tno\n'
+                'tank/home/b\tnoauto\tno\n'
+                'tank/home/c\toff\tno\n'
+                'tank/home/d\ton\tyes\n',
+            stderr: '',
+          );
+        }
+        return const SshExecutionResult(exitCode: 0, stdout: '', stderr: '');
+      };
+
+      await zfsService.mountDataset(
+        profile: profile,
+        secrets: secrets,
+        datasetName: 'tank/home',
+      );
+
+      expect(sshService.commandWithInputCalls.map((call) => call.command), [
+        "zfs mount -R 'tank/home'",
+        "zfs list -H -r -t filesystem -o name,canmount,mounted 'tank/home'",
+        "zfs mount 'tank/home'",
+        "zfs mount 'tank/home/a'",
+        "zfs mount 'tank/home/a/deep'",
+      ]);
+    },
+  );
+
   test('deleteDataset calls zfs destroy', () async {
     await zfsService.deleteDataset(
       profile: profile,
@@ -519,6 +598,7 @@ class _RecordingSshService extends SshService {
       <_CommandWithInputCall>[];
   final List<_UploadCall> uploadCalls = <_UploadCall>[];
   String runCommandOutput = '';
+  SshExecutionResult Function(String command)? onCommandWithInput;
 
   @override
   Future<String> runCommand({
@@ -543,7 +623,8 @@ class _RecordingSshService extends SshService {
         stdinData: List<int>.from(stdinData),
       ),
     );
-    return const SshExecutionResult(exitCode: 0, stdout: '', stderr: '');
+    return onCommandWithInput?.call(command) ??
+        const SshExecutionResult(exitCode: 0, stdout: '', stderr: '');
   }
 
   @override
