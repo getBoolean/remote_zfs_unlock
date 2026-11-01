@@ -182,7 +182,7 @@ jobs:
           target-folder: "${{ steps.branch-name.outputs.current_branch }}"
 
       - name: Find PR Number
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         id: get_pr_number
         if: github.actor != 'dependabot[bot]' && steps.deployment.outputs.deployment-status == 'success'
         with:
@@ -206,7 +206,7 @@ jobs:
           result-encoding: string
 
       - name: Get PR State
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         id: get_pr_state
         if: github.actor != 'dependabot[bot]' && steps.get_pr_number.outputs.result != 'null' && steps.deployment.outputs.deployment-status == 'success'
         with:
@@ -231,7 +231,7 @@ jobs:
 
       - name: Link Deployment in Pull Request Comment
         if: github.actor != 'dependabot[bot]' && steps.get_pr_number.outputs.result != 'null' && steps.deployment.outputs.deployment-status == 'success' && steps.get_pr_state.outputs.result == 'open' && steps.comment.outputs.comment-id == ''
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             github.rest.issues.createComment({
